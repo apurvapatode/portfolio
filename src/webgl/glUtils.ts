@@ -213,17 +213,32 @@ export function createGpuTimer(gl: WebGL2RenderingContext) {
 export type GpuTimer = ReturnType<typeof createGpuTimer>
 
 /**
- * Caps the backing store at 2x DPR. Retina phones report 3-4x, which quadruples
- * fragment cost for a difference nobody can see on a noise-based shader.
+ * Sizes the backing store, deliberately *below* the display resolution.
+ *
+ * This shader is a soft, low-frequency fluid — there is no text, no geometry
+ * edge, nothing whose sharpness a viewer can judge. Rendering it at native
+ * retina resolution costs 4x the fragments of half resolution to produce an
+ * image that is, on this content, indistinguishable; the browser's bilinear
+ * upscale to the CSS box is itself a reasonable blur for a field like this.
+ *
+ * Fragment cost scales linearly with pixel count, so this is the single
+ * largest dial in the whole renderer: 0.5 renders a quarter of the pixels.
+ *
+ * @param maxDpr Ceiling on device pixel ratio, applied before `quality`.
+ * @param quality Multiplier on the final backing-store size, 0..1.
  */
 export function resizeCanvas(
   canvas: HTMLCanvasElement,
   gl: WebGL2RenderingContext,
   maxDpr = 2,
+  quality = 1,
 ): boolean {
-  const dpr = Math.min(window.devicePixelRatio || 1, maxDpr)
-  const width = Math.floor(canvas.clientWidth * dpr)
-  const height = Math.floor(canvas.clientHeight * dpr)
+  const dpr = Math.min(window.devicePixelRatio || 1, maxDpr) * quality
+  // Never go below 320px on the long edge: past that the metaball silhouettes
+  // start to visibly stair-step through the upscale.
+  const scale = Math.max(dpr, 320 / Math.max(canvas.clientWidth, canvas.clientHeight, 1))
+  const width = Math.floor(canvas.clientWidth * scale)
+  const height = Math.floor(canvas.clientHeight * scale)
 
   if (canvas.width === width && canvas.height === height) return false
   if (width === 0 || height === 0) return false

@@ -17,6 +17,8 @@ export type GpuStats = {
   megaFragsPerSec: number
   renderer: string
   timerQuerySupported: boolean
+  /** Adaptive-quality tier the renderer settled on. */
+  tier: string
 }
 
 export const EMPTY_STATS: GpuStats = {
@@ -30,6 +32,7 @@ export const EMPTY_STATS: GpuStats = {
   megaFragsPerSec: 0,
   renderer: 'unknown',
   timerQuerySupported: false,
+  tier: 'high',
 }
 
 /**
@@ -100,6 +103,7 @@ export function useGpuProfiler(enabled: boolean) {
     dpr: 1,
     renderer: 'unknown',
     timerQuerySupported: false,
+    tier: 'high',
   })
 
   /** Called once per frame from the GL loop. Must stay cheap. */
@@ -110,7 +114,14 @@ export function useGpuProfiler(enabled: boolean) {
 
   /** Called on resize / init from the GL layer. */
   const describe = useRef(
-    (info: { width: number; height: number; dpr: number; renderer: string; timerQuerySupported: boolean }) => {
+    (info: {
+      width: number
+      height: number
+      dpr: number
+      renderer: string
+      timerQuerySupported: boolean
+      tier: string
+    }) => {
       meta.current = info
     },
   ).current
@@ -128,7 +139,7 @@ export function useGpuProfiler(enabled: boolean) {
       const p99Ms = frames.percentile(0.99)
       const gpuMs = gpuRing.current.size > 0 ? gpuRing.current.percentile(0.5) : -1
 
-      const { width, height, dpr, renderer, timerQuerySupported } = meta.current
+      const { width, height, dpr, renderer, timerQuerySupported, tier } = meta.current
       const fps = frameMs > 0 ? 1000 / frameMs : 0
 
       setStats({
@@ -144,6 +155,7 @@ export function useGpuProfiler(enabled: boolean) {
         megaFragsPerSec: (width * height * fps) / 1e6,
         renderer,
         timerQuerySupported,
+        tier,
       })
     }, 250)
 

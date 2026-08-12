@@ -8,6 +8,7 @@ import {
   resizeCanvas,
 } from './glUtils'
 import { DEFAULT_PARAMS, HERO_PARAMS, type ParamValues } from './heroParams'
+import { createQualityGovernor } from './adaptiveQuality'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useTheme } from '../hooks/useTheme'
 
@@ -38,6 +39,8 @@ export type CanvasInfo = {
   dpr: number
   renderer: string
   timerQuerySupported: boolean
+  /** Current adaptive-quality tier name, e.g. "high" / "low". */
+  tier: string
 }
 
 export type ShaderCanvasProps = {
@@ -159,6 +162,7 @@ export function ShaderCanvas({
     const { vao, buffer } = createFullscreenTriangle(gl)
     const timer = createGpuTimer(gl)
     const renderer = getRendererName(gl)
+    const governor = createQualityGovernor()
 
     const uniforms = {
       resolution: gl.getUniformLocation(program, 'uResolution'),
@@ -168,6 +172,9 @@ export function ShaderCanvas({
       colorA: gl.getUniformLocation(program, 'uColorA'),
       colorB: gl.getUniformLocation(program, 'uColorB'),
       colorC: gl.getUniformLocation(program, 'uColorC'),
+      // Governor-controlled, not user-facing: this one trades away detail the
+      // reader cannot see at reduced resolution anyway.
+      warpLayers: gl.getUniformLocation(program, 'uWarpLayers'),
     }
 
     // Param uniforms are resolved by name from the schema so that a user-edited
@@ -193,9 +200,14 @@ export function ShaderCanvas({
 
     const uploadParams = () => {
       const values = paramsRef.current
+      const maxOctaves = governor.tier.octaves
       for (const { spec, location } of paramLocations) {
         if (!location) continue
-        const value = values[spec.key] ?? spec.value
+        let value = values[spec.key] ?? spec.value
+        // The governor caps octaves rather than overwriting them, so a user
+        // who deliberately lowers Quality in the shader lab keeps their lower
+        // value instead of having it raised back up by the tier.
+        if (spec.key === 'uOctaves') value = Math.min(value, maxOctaves)
         if (spec.integer) gl.uniform1i(location, Math.round(value))
         else gl.uniform1f(location, value)
       }
@@ -204,7 +216,8 @@ export function ShaderCanvas({
     let lastInfo = ''
     const reportInfo = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      const signature = `${canvas.width}x${canvas.height}@${dpr}`
+      const tier = governor.tier.name
+      const signature = `${canvas.width}x${canvas.height}@${dpr}/${tier}`
       if (signature === lastInfo) return
       lastInfo = signature
       onInfoRef.current?.({
@@ -213,10 +226,14 @@ export function ShaderCanvas({
         dpr,
         renderer,
         timerQuerySupported: timer.supported,
+        tier,
       })
     }
 
     const handlePointerMove = (event: PointerEvent) => {
+      // Once halted the pointer no longer drives anything, so skip the work
+      // entirely rather than updating a uniform nothing will ever read.
+      if (halted) return
       const p = pointerRef.current
       p.tx = (event.clientX / window.innerWidth) * 2 - 1
       p.ty = -((event.clientY / window.innerHeight) * 2 - 1)
@@ -229,7 +246,9 @@ export function ShaderCanvas({
     const observer = new IntersectionObserver(
       ([entry]) => {
         visible = entry.isIntersecting
-        if (visible && !reducedMotion) {
+        // `halted` is terminal: scrolling the hero back into view must not
+        // resurrect a loop we already decided this device cannot afford.
+        if (visible && !reducedMotion && !halted) {
           lastFrame = performance.now()
           frame = requestAnimationFrame(render)
         }
@@ -241,6 +260,9 @@ export function ShaderCanvas({
     let frame = 0
     let elapsed = 0
     let lastFrame = performance.now()
+    let skipCounter = 0
+    // Latched once the governor reaches the terminal tier; never cleared.
+    let halted = false
 
     const render = (now: number) => {
       // Clamped delta: a backgrounded tab returns a huge dt that would rocket
@@ -250,7 +272,29 @@ export function ShaderCanvas({
       lastFrame = now
       elapsed += delta
 
-      if (resizeCanvas(canvas, gl)) reportInfo()
+      // Time still advances on skipped frames, so lowering the redraw cadence
+      // slows how often we paint without slowing the animation itself.
+      //
+      // Skipped frames cost nothing and would drag the median down, hiding
+      // the true cost of a drawn one — so the governor is fed only on frames
+      // we actually render. `rawDelta` then spans the whole stride (a skipped
+      // frame plus a drawn one), which is deliberately the number we want:
+      // the governor's budget is about how often the page *paints*, not how
+      // fast a single draw is in isolation.
+      const stride = governor.tier.frameSkip + 1
+      if (stride > 1 && skipCounter++ % stride !== 0) {
+        if (visible && !reducedMotion) frame = requestAnimationFrame(render)
+        return
+      }
+
+      // Steady-state frame cost decides the tier. A tier change resizes the
+      // backing store, which is why this runs before resizeCanvas.
+      if (governor.sample(rawDelta)) {
+        resizeCanvas(canvas, gl, 2, governor.tier.resolution)
+        reportInfo()
+      } else if (resizeCanvas(canvas, gl, 2, governor.tier.resolution)) {
+        reportInfo()
+      }
 
       const p = pointerRef.current
       p.x += (p.tx - p.x) * 0.05 // critically-damped-ish follow
@@ -265,6 +309,7 @@ export function ShaderCanvas({
       gl.uniform1f(uniforms.intensity, intensityRef.current)
       uploadColors()
       uploadParams()
+      gl.uniform1i(uniforms.warpLayers, governor.tier.warpLayers)
       gl.drawArrays(gl.TRIANGLES, 0, 3)
 
       if (measuring) {
@@ -275,6 +320,15 @@ export function ShaderCanvas({
         onFrameRef.current?.(rawDelta, timer.read())
       }
 
+      // Terminal tier: this device cannot animate the background without
+      // costing the page its responsiveness, so the frame just drawn becomes
+      // a still image and the loop ends here. Nothing restarts it — not the
+      // IntersectionObserver, not a resize.
+      if (governor.tier.halt) {
+        halted = true
+        return
+      }
+
       if (visible && !reducedMotion) frame = requestAnimationFrame(render)
     }
 
@@ -282,7 +336,11 @@ export function ShaderCanvas({
     // ResizeObserver has to be able to redraw it after any layout change —
     // otherwise a resize leaves a stretched, stale image on screen.
     const drawStaticFrame = () => {
-      resizeCanvas(canvas, gl)
+      // A one-off frame under reduced motion has no frame rate to sustain, so
+      // it can afford full quality — but once halted we are on a device that
+      // demonstrably cannot, and a full-resolution redraw on every slider drag
+      // would reintroduce exactly the stall the halt exists to prevent.
+      resizeCanvas(canvas, gl, 2, halted ? governor.tier.resolution : 1)
       reportInfo()
       gl.uniform2f(uniforms.resolution, canvas.width, canvas.height)
       gl.uniform2f(uniforms.pointer, 0, 0)
@@ -290,6 +348,7 @@ export function ShaderCanvas({
       gl.uniform1f(uniforms.intensity, intensityRef.current)
       uploadColors()
       uploadParams()
+      gl.uniform1i(uniforms.warpLayers, governor.tier.warpLayers)
       gl.drawArrays(gl.TRIANGLES, 0, 3)
     }
 
@@ -301,7 +360,7 @@ export function ShaderCanvas({
     // element-level observer fires when it later gets its real size.
     const resizeObserver = new ResizeObserver(() => {
       if (reducedMotion) drawStaticFrame()
-      else if (resizeCanvas(canvas, gl)) reportInfo()
+      else if (resizeCanvas(canvas, gl, 2, governor.tier.resolution)) reportInfo()
     })
     resizeObserver.observe(canvas)
 
@@ -314,9 +373,11 @@ export function ShaderCanvas({
     window.addEventListener('themechange', onThemeChange)
 
     // A static frame ignores param edits, so the playground would look broken
-    // under reduced motion without an explicit redraw signal.
+    // without an explicit redraw signal. This covers both reduced-motion and
+    // the halted tier, where the loop has stopped for good but the sliders
+    // must still visibly do something.
     const onParamsChange = () => {
-      if (reducedMotion) drawStaticFrame()
+      if (reducedMotion || halted) drawStaticFrame()
     }
     window.addEventListener('shaderparams', onParamsChange)
 

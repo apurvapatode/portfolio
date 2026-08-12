@@ -75,6 +75,23 @@ export function PerfHud({ stats }: { stats: GpuStats }) {
         and down in Controls and watch them move.
       </p>
 
+      {/* The site quietly lowers its own quality on slower hardware, so say
+          so — an unexplained soft image reads as a bug, whereas a named tier
+          reads as the deliberate engineering it is. */}
+      <div className="rounded-lg border border-ash p-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-[11px] text-mute">Auto quality</span>
+          <span className="font-mono text-[11px] uppercase text-acid">
+            {stats.tier}
+          </span>
+        </div>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-mute">
+          {stats.tier === 'high'
+            ? 'Your device is keeping up, so the background runs at full detail.'
+            : 'Detail and resolution were lowered automatically to keep the page responsive on this device.'}
+        </p>
+      </div>
+
       <div className="h-px bg-ash/60" />
 
       <div className="space-y-2 font-mono text-[11px]">

@@ -44,6 +44,7 @@ uniform float uAberration;   // chromatic offset          (default 0.006)
 uniform float uGrain;        // film grain amount         (default 0.035)
 uniform float uVignette;     // vignette depth            (default 0.5)
 uniform int   uOctaves;      // FBM octaves               (default 5)
+uniform int   uWarpLayers;   // 1 or 2 warp passes        (default 2)
 
 // -- Hash / noise ----------------------------------------------------------
 
@@ -90,8 +91,17 @@ float fbm(vec2 p) {
 
 // -- Field construction ----------------------------------------------------
 
+// Two warp layers cost 5 fbm() calls; one costs 3. The second layer adds the
+// fine curling filaments — lovely on a desktop GPU, and invisible once the
+// image is being upscaled from 40% resolution on a phone. uWarpLayers lets
+// the quality governor drop it, which removes 40% of the shader's total work.
 float warpedField(vec2 p, float t) {
   vec2 q = vec2(fbm(p + vec2(0.0, t * 0.12)), fbm(p + vec2(5.2, 1.3 - t * 0.09)));
+
+  if (uWarpLayers < 2) {
+    return fbm(p + uWarp * q);
+  }
+
   vec2 r = vec2(
     fbm(p + uWarp * q + vec2(1.7, 9.2) + t * 0.06),
     fbm(p + uWarp * q + vec2(8.3, 2.8) - t * 0.05)
@@ -138,10 +148,19 @@ void main() {
   float rim = smoothstep(0.05, 0.0, abs(balls - 0.02));
   color += uColorC * rim * uRim * uIntensity;
 
-  // Cheap chromatic aberration: resample the field at a radial offset.
+  // Chromatic aberration.
+  //
+  // This used to call warpedField() a second time at a radial offset, which
+  // doubled the cost of the most expensive function in the shader — 25 extra
+  // noise() evaluations per pixel — to tint one channel. The offset is tiny
+  // (a fraction of a pixel at typical values), so the resampled field is very
+  // nearly the original plus its own gradient along dir. Approximating it
+  // with the screen-space derivative gives a visually equivalent split for
+  // two hardware-accelerated instructions instead of a second field.
   vec2 dir = normalize(uv + 1e-5);
   float radius = length(uv);
-  float shifted = warpedField((uv - dir * uAberration * radius) * uScale, t);
+  float gradient = dot(vec2(dFdx(field), dFdy(field)), dir);
+  float shifted = field - gradient * uAberration * radius * 140.0;
   color.r = mix(color.r, mix(uColorA, uColorB, clamp(shifted * 1.6 + 0.5, 0.0, 1.0)).r, 0.6);
 
   // Grain, tied to time so it shimmers rather than sitting static.
