@@ -1,5 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ShaderCanvas } from '../webgl/ShaderCanvas'
+import { HERO_FRAG } from '../webgl/heroShader'
+import { DEFAULT_PARAMS, type ParamKey, type ParamValues } from '../webgl/heroParams'
+import { ShaderLab } from './ShaderLab'
+import { useGpuProfiler } from '../hooks/useGpuProfiler'
 import { useMagnetic } from '../hooks/useMagnetic'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { PROFILE } from '../data/content'
@@ -9,6 +13,39 @@ export function Hero() {
   const [mounted, setMounted] = useState(false)
   const titleRef = useRef<HTMLHeadingElement>(null)
   const ctaRef = useMagnetic<HTMLAnchorElement>(0.4, 90)
+
+  // -- Shader lab state ----------------------------------------------------
+  const [labOpen, setLabOpen] = useState(false)
+  const [params, setParams] = useState<ParamValues>(DEFAULT_PARAMS)
+  const [source, setSource] = useState(HERO_FRAG)
+  const [compile, setCompile] = useState({ ok: true, log: '' })
+
+  // Profiling only runs while the lab is open — a timer query per frame is
+  // cheap but not free, and nobody is reading a HUD that is not on screen.
+  const { stats, record, describe } = useGpuProfiler(labOpen)
+
+  const handleParamChange = useCallback((key: ParamKey, value: number) => {
+    setParams((prev) => ({ ...prev, [key]: value }))
+    // Reduced-motion draws a single frame, so it needs a nudge to redraw.
+    window.dispatchEvent(new Event('shaderparams'))
+  }, [])
+
+  const handlePreset = useCallback((values: Partial<ParamValues>) => {
+    setParams((prev) => ({ ...prev, ...values }))
+    window.dispatchEvent(new Event('shaderparams'))
+  }, [])
+
+  const handleReset = useCallback(() => {
+    setParams(DEFAULT_PARAMS)
+    window.dispatchEvent(new Event('shaderparams'))
+  }, [])
+
+  const handleSourceReset = useCallback(() => setSource(HERO_FRAG), [])
+
+  const handleCompile = useCallback(
+    (result: { ok: boolean; log: string }) => setCompile(result),
+    [],
+  )
 
   // Drives the entrance; one paint after mount so the transition actually runs.
   useEffect(() => {
@@ -51,7 +88,14 @@ export function Hero() {
       id="top"
       className="grain relative isolate flex min-h-svh flex-col justify-between overflow-hidden px-6 pb-10 pt-28 md:px-10"
     >
-      <ShaderCanvas />
+      <ShaderCanvas
+        params={params}
+        fragmentSource={source}
+        onCompile={handleCompile}
+        onFrame={record}
+        onInfo={describe}
+        profiling={labOpen}
+      />
 
       {/* Legibility scrim. The shader is bright in places and display type sits
           directly on it, so this guarantees text contrast regardless of where
@@ -147,10 +191,43 @@ export function Hero() {
           {PROFILE.availability}
         </span>
         <span>{PROFILE.location}</span>
+
+        {/* The invitation matters as much as the feature: "this background is
+            a real shader and you can edit it" is the whole point, and nobody
+            discovers that from an unlabelled icon. */}
+        <button
+          type="button"
+          onClick={() => setLabOpen((open) => !open)}
+          data-cursor="pointer"
+          aria-expanded={labOpen}
+          className="group inline-flex items-center gap-2 rounded-full border border-ash px-4 py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-bone transition-colors hover:border-acid hover:text-acid"
+        >
+          <span
+            aria-hidden="true"
+            className="inline-block h-1.5 w-1.5 rounded-full bg-acid transition-transform group-hover:scale-125"
+          />
+          Edit this shader
+        </button>
+
         <span aria-hidden="true" className="hidden md:inline">
           Scroll ↓
         </span>
       </div>
+
+      <ShaderLab
+        open={labOpen}
+        onClose={() => setLabOpen(false)}
+        params={params}
+        onParamChange={handleParamChange}
+        onPreset={handlePreset}
+        onReset={handleReset}
+        source={source}
+        onSourceApply={setSource}
+        onSourceReset={handleSourceReset}
+        compileLog={compile.log}
+        compileOk={compile.ok}
+        stats={stats}
+      />
     </section>
   )
 }

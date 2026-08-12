@@ -1,6 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { HERO_FRAG, HERO_VERT } from './heroShader'
-import { createFullscreenTriangle, createProgram, resizeCanvas } from './glUtils'
+import {
+  compileProgram,
+  createFullscreenTriangle,
+  createGpuTimer,
+  getRendererName,
+  resizeCanvas,
+} from './glUtils'
+import { DEFAULT_PARAMS, HERO_PARAMS, type ParamValues } from './heroParams'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useTheme } from '../hooks/useTheme'
 
@@ -23,25 +30,85 @@ const LIGHT_COLORS = {
   c: [0.62, 0.78, 0.35],
 } as const
 
+export type FrameSample = (frameMs: number, gpuMs: number) => void
+
+export type CanvasInfo = {
+  width: number
+  height: number
+  dpr: number
+  renderer: string
+  timerQuerySupported: boolean
+}
+
+export type ShaderCanvasProps = {
+  intensity?: number
+  /**
+   * Live parameter overrides from the playground. Uploaded per frame; changing
+   * these never recompiles.
+   */
+  params?: ParamValues
+  /**
+   * Fragment source override. Changing this *does* recompile, so it is passed
+   * separately from `params` — see the effect split below.
+   */
+  fragmentSource?: string
+  /** Called after each compile attempt, with the driver log on failure. */
+  onCompile?: (result: { ok: boolean; log: string }) => void
+  /** Per-frame timing sink. Must be cheap and stable across renders. */
+  onFrame?: FrameSample
+  /** Reports backing-store size and GPU identity on init and resize. */
+  onInfo?: (info: CanvasInfo) => void
+  /** Profiling costs a GPU timer query per frame; only pay when the HUD is up. */
+  profiling?: boolean
+}
+
 /**
  * Fullscreen shader background. Falls back to a CSS gradient when WebGL2 is
  * unavailable, and renders exactly one frame when the user prefers reduced
  * motion (so the visual still exists, it just holds still).
  */
-export function ShaderCanvas({ intensity = 1 }: { intensity?: number }) {
+export function ShaderCanvas({
+  intensity = 1,
+  params,
+  fragmentSource,
+  onCompile,
+  onFrame,
+  onInfo,
+  profiling = false,
+}: ShaderCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const reducedMotion = useReducedMotion()
   const { theme } = useTheme()
 
-  // Held in a ref so pointer moves and scroll never trigger React renders.
+  // Everything below is held in refs and read inside the draw loop. The rule
+  // for this component: a prop change must never tear down the GL context
+  // unless it changes the *program*, because recreating a context is expensive
+  // and a canvas only ever vends one.
   const pointerRef = useRef({ x: 0, y: 0, tx: 0, ty: 0 })
   const intensityRef = useRef(intensity)
   intensityRef.current = intensity
 
-  // Read inside the draw loop rather than listed as an effect dependency: a
-  // theme change must not tear down and rebuild the GL context.
+  const paramsRef = useRef<ParamValues>(params ?? DEFAULT_PARAMS)
+  paramsRef.current = params ?? DEFAULT_PARAMS
+
   const themeRef = useRef(theme)
   themeRef.current = theme
+
+  const profilingRef = useRef(profiling)
+  profilingRef.current = profiling
+
+  // Callbacks go through refs so that an inline arrow in the parent does not
+  // rebuild the GL context on every parent render.
+  const onFrameRef = useRef(onFrame)
+  onFrameRef.current = onFrame
+  const onInfoRef = useRef(onInfo)
+  onInfoRef.current = onInfo
+  const onCompileRef = useRef(onCompile)
+  onCompileRef.current = onCompile
+
+  // `fragmentSource` is a real dependency: it is the only prop that requires a
+  // new program. Everything else is uploaded per frame from the refs above.
+  const frag = fragmentSource ?? HERO_FRAG
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -57,16 +124,41 @@ export function ShaderCanvas({ intensity = 1 }: { intensity?: number }) {
 
     if (!gl) {
       canvas.dataset.fallback = 'true'
+      onCompileRef.current?.({ ok: false, log: 'WebGL2 is not available in this browser.' })
       return
     }
 
-    const program = createProgram(gl, HERO_VERT, HERO_FRAG)
-    if (!program) {
-      canvas.dataset.fallback = 'true'
-      return
+    const compiled = compileProgram(gl, HERO_VERT, frag)
+    onCompileRef.current?.({
+      ok: compiled.ok,
+      log: compiled.ok ? '' : compiled.log,
+    })
+
+    // On a failed edit, fall back to the shipped shader rather than bailing
+    // out. The canvas is drawn with preserveDrawingBuffer:false, so there is
+    // no "last frame" to leave up — returning early drops the hero to flat
+    // background and makes a one-character typo look like a crashed page.
+    // Keeping a known-good program running means the error log is the only
+    // thing that changes, which is what an editor should do.
+    let program: WebGLProgram
+    if (compiled.ok) {
+      delete canvas.dataset.compileError
+      program = compiled.program
+    } else {
+      canvas.dataset.compileError = 'true'
+      const fallback = compileProgram(gl, HERO_VERT, HERO_FRAG)
+      // If even the shipped shader will not compile, this GPU cannot run the
+      // hero at all; let the CSS gradient underneath stand in.
+      if (!fallback.ok) {
+        canvas.dataset.fallback = 'true'
+        return
+      }
+      program = fallback.program
     }
 
     const { vao, buffer } = createFullscreenTriangle(gl)
+    const timer = createGpuTimer(gl)
+    const renderer = getRendererName(gl)
 
     const uniforms = {
       resolution: gl.getUniformLocation(program, 'uResolution'),
@@ -77,6 +169,14 @@ export function ShaderCanvas({ intensity = 1 }: { intensity?: number }) {
       colorB: gl.getUniformLocation(program, 'uColorB'),
       colorC: gl.getUniformLocation(program, 'uColorC'),
     }
+
+    // Param uniforms are resolved by name from the schema so that a user-edited
+    // shader which drops one simply gets a null location (a no-op upload)
+    // instead of throwing.
+    const paramLocations = HERO_PARAMS.map((spec) => ({
+      spec,
+      location: gl.getUniformLocation(program, spec.key),
+    }))
 
     gl.useProgram(program)
     gl.bindVertexArray(vao)
@@ -89,6 +189,31 @@ export function ShaderCanvas({ intensity = 1 }: { intensity?: number }) {
       gl.uniform3fv(uniforms.colorA, palette.a)
       gl.uniform3fv(uniforms.colorB, palette.b)
       gl.uniform3fv(uniforms.colorC, palette.c)
+    }
+
+    const uploadParams = () => {
+      const values = paramsRef.current
+      for (const { spec, location } of paramLocations) {
+        if (!location) continue
+        const value = values[spec.key] ?? spec.value
+        if (spec.integer) gl.uniform1i(location, Math.round(value))
+        else gl.uniform1f(location, value)
+      }
+    }
+
+    let lastInfo = ''
+    const reportInfo = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const signature = `${canvas.width}x${canvas.height}@${dpr}`
+      if (signature === lastInfo) return
+      lastInfo = signature
+      onInfoRef.current?.({
+        width: canvas.width,
+        height: canvas.height,
+        dpr,
+        renderer,
+        timerQuerySupported: timer.supported,
+      })
     }
 
     const handlePointerMove = (event: PointerEvent) => {
@@ -120,22 +245,35 @@ export function ShaderCanvas({ intensity = 1 }: { intensity?: number }) {
     const render = (now: number) => {
       // Clamped delta: a backgrounded tab returns a huge dt that would rocket
       // the animation forward on resume.
-      const delta = Math.min((now - lastFrame) / 1000, 1 / 30)
+      const rawDelta = now - lastFrame
+      const delta = Math.min(rawDelta / 1000, 1 / 30)
       lastFrame = now
       elapsed += delta
 
-      resizeCanvas(canvas, gl)
+      if (resizeCanvas(canvas, gl)) reportInfo()
 
       const p = pointerRef.current
       p.x += (p.tx - p.x) * 0.05 // critically-damped-ish follow
       p.y += (p.ty - p.y) * 0.05
+
+      const measuring = profilingRef.current
+      if (measuring) timer.begin()
 
       gl.uniform2f(uniforms.resolution, canvas.width, canvas.height)
       gl.uniform2f(uniforms.pointer, p.x, p.y)
       gl.uniform1f(uniforms.time, elapsed)
       gl.uniform1f(uniforms.intensity, intensityRef.current)
       uploadColors()
+      uploadParams()
       gl.drawArrays(gl.TRIANGLES, 0, 3)
+
+      if (measuring) {
+        timer.end()
+        // `read()` returns the newest *completed* query, which is typically
+        // from a frame or two ago — that is inherent to async GPU timing, not
+        // a bug. Pairing it with this frame's CPU interval is fine for a HUD.
+        onFrameRef.current?.(rawDelta, timer.read())
+      }
 
       if (visible && !reducedMotion) frame = requestAnimationFrame(render)
     }
@@ -145,11 +283,13 @@ export function ShaderCanvas({ intensity = 1 }: { intensity?: number }) {
     // otherwise a resize leaves a stretched, stale image on screen.
     const drawStaticFrame = () => {
       resizeCanvas(canvas, gl)
+      reportInfo()
       gl.uniform2f(uniforms.resolution, canvas.width, canvas.height)
       gl.uniform2f(uniforms.pointer, 0, 0)
       gl.uniform1f(uniforms.time, 12)
       gl.uniform1f(uniforms.intensity, intensityRef.current)
       uploadColors()
+      uploadParams()
       gl.drawArrays(gl.TRIANGLES, 0, 3)
     }
 
@@ -161,7 +301,7 @@ export function ShaderCanvas({ intensity = 1 }: { intensity?: number }) {
     // element-level observer fires when it later gets its real size.
     const resizeObserver = new ResizeObserver(() => {
       if (reducedMotion) drawStaticFrame()
-      else resizeCanvas(canvas, gl)
+      else if (resizeCanvas(canvas, gl)) reportInfo()
     })
     resizeObserver.observe(canvas)
 
@@ -173,12 +313,21 @@ export function ShaderCanvas({ intensity = 1 }: { intensity?: number }) {
     }
     window.addEventListener('themechange', onThemeChange)
 
+    // A static frame ignores param edits, so the playground would look broken
+    // under reduced motion without an explicit redraw signal.
+    const onParamsChange = () => {
+      if (reducedMotion) drawStaticFrame()
+    }
+    window.addEventListener('shaderparams', onParamsChange)
+
     return () => {
       window.removeEventListener('themechange', onThemeChange)
+      window.removeEventListener('shaderparams', onParamsChange)
       cancelAnimationFrame(frame)
       observer.disconnect()
       resizeObserver.disconnect()
       window.removeEventListener('pointermove', handlePointerMove)
+      timer.dispose()
       gl.deleteProgram(program)
       gl.deleteVertexArray(vao)
       gl.deleteBuffer(buffer)
@@ -186,7 +335,7 @@ export function ShaderCanvas({ intensity = 1 }: { intensity?: number }) {
       // WebGL context, so killing it here would leave StrictMode's second mount
       // (and any future remount) compiling against a dead context.
     }
-  }, [reducedMotion])
+  }, [reducedMotion, frag])
 
   return (
     <canvas

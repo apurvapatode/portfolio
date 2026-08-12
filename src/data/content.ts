@@ -54,7 +54,7 @@ export const PROJECTS: Project[] = [
     year: '2024 — Present',
     discipline: ['React', 'Vite', 'JavaScript', 'FastAPI', 'SEO'],
     summary:
-      'Scholarship platform for Indian students. I own the frontend end to end: the public React + Vite marketing site, and the Admin, Student and Partner dashboards covering onboarding, document verification and application tracking — around 70% of every frontend repo is mine. Also contribute to the FastAPI + PostgreSQL backend, and mentor interns through code review.',
+      'A scholarship platform serving 5,000+ Indian students, and I am the frontend team — the public React + Vite site plus three separate dashboards for admins, students and partners, covering onboarding, document verification and application tracking. Around 70% of every frontend repo is mine, written to be handed over: I also review the interns\' PRs against it. When the backend blocked me I built the FastAPI endpoints myself rather than wait.',
     metric: { value: '5k+', label: 'active users served' },
     accent: '#d7ff3e',
     href: 'https://scholarlify.com',
@@ -66,7 +66,7 @@ export const PROJECTS: Project[] = [
     year: '2025 — Present',
     discipline: ['Next.js', 'TypeScript', 'Turborepo', 'Analytics UI'],
     summary:
-      'Delivery-planning platform built by a distributed team as a Next.js + TypeScript monorepo. I lead the internal admin portal — Clients management, roles, routing and system-ops pages, and a combined stats dashboard — and build the analytics and reporting surface on the client portal. Cut page loads to single combo-endpoint requests and shipped route-level loading skeletons.',
+      'A distributed team of ten building a delivery-planning platform as a Next.js + TypeScript monorepo, and I was handed the internal admin portal to lead — client management, roles, routing, system-ops and a combined stats dashboard — plus the analytics surface customers actually see. Pages that fired a request per widget now make one combo call, behind route-level skeletons, so the portal stopped feeling slow under real data rather than only in a demo.',
     metric: { value: 'Admin', label: 'portal lead · team of 10' },
     accent: '#6d4aff',
     href: 'https://planner.maponomy.com/',
@@ -78,7 +78,7 @@ export const PROJECTS: Project[] = [
     year: '2026',
     discipline: ['WebGL', 'GLSL', 'Vite', 'Motion'],
     summary:
-      'A custom WebGL engine driving a raymarched fluid shader hero, plus an interaction layer of smooth scroll, custom cursor and reusable magnetic hover hooks. Built on a Tailwind v4 design-token system and shipped accessible — reduced-motion fallbacks, keyboard navigation, semantic markup.',
+      'The site you are on. A hand-written WebGL engine runs the raymarched fluid behind the hero — no three.js — under a layer of smooth scroll, custom cursor and magnetic hover. The point is that it holds 60fps and still passes an audit: reduced-motion users get a static frame, every control is keyboard-reachable, and the markup is semantic underneath the effects. Open the shader editor in the hero corner and change the source live if you want to check.',
     metric: { value: '60fps', label: 'GPU-driven hero' },
     accent: '#ff4d2e',
     href: '#',
@@ -90,8 +90,8 @@ export const PROJECTS: Project[] = [
     year: '2022',
     discipline: ['Responsive', 'Cross-browser', 'CSS'],
     summary:
-      'Converted Figma designs into pixel-accurate responsive pages and resolved cross-browser compatibility issues across the marketing surface.',
-    metric: { value: 'Pixel', label: 'accurate handoff' },
+      'Written case studies on turning Figma files into production pages — the handoff problems that actually cost time, the responsive and cross-browser fixes they needed, and what I would do differently now. Open it if you want to see how I think through a build before you brief me on one.',
+    metric: { value: 'Read', label: 'the written case studies' },
     accent: '#4ac3ff',
     href: CASE_STUDIES_URL,
   },
@@ -120,28 +120,28 @@ export type Service = {
 export const SERVICES: Service[] = [
   {
     title: 'Website fixes & small jobs',
-    body: 'Something is broken, misaligned on mobile, or has been on the backlog for months. Send it over — most small fixes are quoted the same day, with no minimum engagement.',
+    body: 'Something is broken, misaligned on mobile, or has sat on the backlog for months because it is too small to staff. Send it over. Most fixes are quoted the same day, there is no minimum, and if it turns out to be a ten-minute job I will tell you that instead of scoping it into a project.',
     tags: ['Bug fixes', 'Responsive', 'Quick turnaround', 'No minimum'],
     turnaround: 'Quoted same day · done in a week',
     cta: 'A fix or small change',
   },
   {
     title: 'Rebuilds, performance & SEO',
-    body: 'Your site is slow, breaks on phones, or nobody left can safely change it. I rebuild it in Next.js or Vite with TypeScript, fix what is actually costing you load time, and hand it back documented — with the Lighthouse numbers from before and after, so the improvement is something you can see rather than take on trust.',
+    body: 'Your site is slow, breaks on phones, or nobody left on the team can safely change it. I rebuild it in Next.js or Vite with TypeScript and fix what is genuinely costing you load time — not whatever is easiest to point at. You get the Lighthouse numbers from before and after, so the improvement is something you can see rather than take on trust, and a documented handover so the next person to touch it does not have to be me.',
     tags: ['Next.js', 'TypeScript', 'Core Web Vitals', 'WCAG', 'Lighthouse'],
     turnaround: 'Typically 3—6 weeks',
     cta: 'A full site build or rebuild',
   },
   {
     title: 'High-end interactive builds',
-    body: 'WebGL hero sections, GLSL shader effects, and motion design for brand and portfolio sites. Built to survive a Lighthouse audit as well as a design review — this site is the working example.',
+    body: 'WebGL hero sections, GLSL shader effects and motion design for brand and portfolio sites. Work like this usually arrives slow, unusable on a phone and invisible to a screen reader — that is the tradeoff I build against, not the one I accept. It has to survive a Lighthouse audit as well as a design review. This site is the working example, and the shader editor in the hero is open if you want to inspect it.',
     tags: ['WebGL', 'GLSL', 'Motion', 'Kinetic Type'],
     turnaround: 'Scoped per project',
     cta: 'A full site build or rebuild',
   },
   {
     title: 'Ongoing support',
-    body: 'A standing arrangement for teams without a frontend person — changes, fixes and dependency upkeep handled as they come up, so small things stop queueing into a rescue project. Retained monthly or drawn down as hours.',
+    body: 'For teams without a frontend person: changes, fixes and dependency upkeep handled as they come up, so the small things stop queueing until they become a rescue project. Monthly retainer or a block of hours you draw down, cancellable either way — if a quiet month means you did not need me, that is the arrangement working, not something you should be billed for.',
     tags: ['Retainer', 'Maintenance', 'Dependency upkeep', 'On call'],
     turnaround: 'Monthly retainer or hourly',
     cta: 'Ongoing support',
@@ -151,19 +151,19 @@ export const SERVICES: Service[] = [
 export const PROCESS = [
   {
     phase: 'Scope',
-    body: 'A working session on goals, constraints and what "done" means. You get a written scope with a fixed price before anything is built.',
+    body: 'A working session on goals, constraints and what "done" actually means, then a written scope with a fixed price before anything is built. If the scope later changes, that is a conversation and a new number — not a line item you discover on the invoice.',
   },
   {
     phase: 'Prototype',
-    body: 'The riskiest screen first, clickable. We resolve the hard interaction questions while they are still cheap to change.',
+    body: 'The riskiest screen first, clickable and in your hands. The hard interaction questions get settled while they are still cheap to change, which is the difference between a redesign in week two and a rebuild in week six.',
   },
   {
     phase: 'Build',
-    body: 'Weekly deploys to a staging URL. You watch it come together instead of waiting for a reveal at the end.',
+    body: 'Weekly deploys to a staging URL you can open whenever you like. You watch it come together and can redirect early, instead of waiting for a reveal at the end and hoping it matches what you had in mind.',
   },
   {
     phase: 'Ship & support',
-    body: 'Launch, a performance and accessibility audit, and a handover doc your team can act on. Thirty days of bug support included.',
+    body: 'Launch, a performance and accessibility audit against real numbers, and a handover doc written for whoever maintains it next. Thirty days of bug support included — if something I built breaks in that window, fixing it is not a new engagement.',
   },
 ]
 
@@ -173,10 +173,16 @@ export const CAPABILITIES = [
   'Claude Code', 'Accessibility', 'Performance', 'Figma',
 ]
 
+/**
+ * Ordered strongest first. Reach and responsibility are the numbers that answer
+ * "can this person be trusted with my project"; tenure is the weakest of the
+ * three and reads as a hedge when it leads, so it goes last and is framed as
+ * production shipping rather than time served.
+ */
 export const STATS = [
-  { value: '2+', label: 'Years shipping production' },
-  { value: '5k+', label: 'Users on shipped platforms' },
-  { value: '3', label: 'Teams shipped for' },
+  { value: '5k+', label: 'Users on platforms I build for' },
+  { value: '10', label: 'Person team — I lead the admin portal' },
+  { value: '2+', label: 'Years shipping to production' },
 ]
 
 /**

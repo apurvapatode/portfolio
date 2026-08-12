@@ -30,6 +30,21 @@ uniform vec3  uColorA;
 uniform vec3  uColorB;
 uniform vec3  uColorC;
 
+// -- Live-tunable parameters ----------------------------------------------
+// Exposed to the in-page shader playground. Every default below reproduces
+// the literal that used to be hard-coded at the same site, so the shipped
+// visual is bit-identical with the playground closed.
+uniform float uWarp;         // domain-warp strength      (default 4.0)
+uniform float uScale;        // field frequency           (default 1.8)
+uniform float uSpeed;        // time multiplier           (default 0.35)
+uniform float uBallRadius;   // pointer metaball radius   (default 0.22)
+uniform float uSmooth;       // smin blend factor         (default 0.45)
+uniform float uRim;          // rim-light gain            (default 0.5)
+uniform float uAberration;   // chromatic offset          (default 0.006)
+uniform float uGrain;        // film grain amount         (default 0.035)
+uniform float uVignette;     // vignette depth            (default 0.5)
+uniform int   uOctaves;      // FBM octaves               (default 5)
+
 // -- Hash / noise ----------------------------------------------------------
 
 vec2 hash2(vec2 p) {
@@ -53,11 +68,19 @@ float noise(vec2 p) {
   );
 }
 
+// 5 octaves by default: past this the detail lands below one pixel at our DPR
+// cap. The loop bound is a compile-time constant with a runtime break because
+// GLSL ES 3.0 requires loops to be provably bounded for unrolling — a bare
+// "i < uOctaves" would force the driver into a dynamic loop and cost more
+// than the octaves it saves. (No backticks here: this comment lives inside a
+// template literal, and one would terminate the shader string.)
+const int MAX_OCTAVES = 8;
+
 float fbm(vec2 p) {
   float value = 0.0;
   float amplitude = 0.5;
-  // 5 octaves: past this the detail lands below one pixel at our DPR cap.
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < MAX_OCTAVES; i++) {
+    if (i >= uOctaves) break;
     value += amplitude * noise(p);
     p *= 2.02;          // non-integer lacunarity avoids axis-aligned banding
     amplitude *= 0.5;
@@ -70,10 +93,10 @@ float fbm(vec2 p) {
 float warpedField(vec2 p, float t) {
   vec2 q = vec2(fbm(p + vec2(0.0, t * 0.12)), fbm(p + vec2(5.2, 1.3 - t * 0.09)));
   vec2 r = vec2(
-    fbm(p + 4.0 * q + vec2(1.7, 9.2) + t * 0.06),
-    fbm(p + 4.0 * q + vec2(8.3, 2.8) - t * 0.05)
+    fbm(p + uWarp * q + vec2(1.7, 9.2) + t * 0.06),
+    fbm(p + uWarp * q + vec2(8.3, 2.8) - t * 0.05)
   );
-  return fbm(p + 4.0 * r);
+  return fbm(p + uWarp * r);
 }
 
 // Polynomial smooth minimum — merges the metaballs without a crease.
@@ -83,20 +106,20 @@ float smin(float a, float b, float k) {
 }
 
 float metaballs(vec2 uv, vec2 pointer, float t) {
-  float d = length(uv - pointer) - 0.22;
-  d = smin(d, length(uv - vec2(sin(t * 0.4) * 0.5, cos(t * 0.31) * 0.3)) - 0.3, 0.45);
-  d = smin(d, length(uv - vec2(cos(t * 0.23) * 0.6, sin(t * 0.37) * 0.4)) - 0.26, 0.45);
+  float d = length(uv - pointer) - uBallRadius;
+  d = smin(d, length(uv - vec2(sin(t * 0.4) * 0.5, cos(t * 0.31) * 0.3)) - 0.3, uSmooth);
+  d = smin(d, length(uv - vec2(cos(t * 0.23) * 0.6, sin(t * 0.37) * 0.4)) - 0.26, uSmooth);
   return d;
 }
 
 void main() {
   // Aspect-correct coordinates centred on the viewport.
   vec2 uv = (gl_FragCoord.xy - 0.5 * uResolution) / min(uResolution.x, uResolution.y);
-  float t = uTime * 0.35;
+  float t = uTime * uSpeed;
 
   vec2 pointer = uPointer * vec2(uResolution.x / uResolution.y, 1.0) * 0.5;
 
-  float field = warpedField(uv * 1.8, t);
+  float field = warpedField(uv * uScale, t);
   float balls = metaballs(uv, pointer, t);
 
   // Pointer proximity locally boosts the warp so the field "leans" toward you.
@@ -113,19 +136,19 @@ void main() {
   // Fresnel-ish rim where the metaball boundary crosses the noise ridges.
   // This thin bright edge is where the accent colour actually earns its place.
   float rim = smoothstep(0.05, 0.0, abs(balls - 0.02));
-  color += uColorC * rim * 0.5 * uIntensity;
+  color += uColorC * rim * uRim * uIntensity;
 
   // Cheap chromatic aberration: resample the field at a radial offset.
   vec2 dir = normalize(uv + 1e-5);
   float radius = length(uv);
-  float shifted = warpedField((uv - dir * 0.006 * radius) * 1.8, t);
+  float shifted = warpedField((uv - dir * uAberration * radius) * uScale, t);
   color.r = mix(color.r, mix(uColorA, uColorB, clamp(shifted * 1.6 + 0.5, 0.0, 1.0)).r, 0.6);
 
   // Grain, tied to time so it shimmers rather than sitting static.
   float grain = fract(sin(dot(gl_FragCoord.xy + t, vec2(12.9898, 78.233))) * 43758.5453);
-  color += (grain - 0.5) * 0.035;
+  color += (grain - 0.5) * uGrain;
 
-  color *= 1.0 - 0.5 * smoothstep(0.5, 1.25, radius);   // vignette
+  color *= 1.0 - uVignette * smoothstep(0.5, 1.25, radius);   // vignette
   color = pow(max(color, 0.0), vec3(0.9));              // lift the shadows
 
   fragColor = vec4(color, 1.0);
