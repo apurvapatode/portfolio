@@ -1,0 +1,132 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-void: #050506;
+  --color-ink: #0b0b0f;
+  --color-smoke: #16161c;
+  --color-ash: #26262f;
+  --color-mute: #6b6b7b;
+  --color-bone: #b8b8c4;
+  --color-chalk: #f4f4f6;
+  --color-acid: #d7ff3e;
+  --color-plasma: #6d4aff;
+  --color-ember: #ff4d2e;
+
+  --font-display: 'Archivo', 'Helvetica Neue', sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-quint: cubic-bezier(0.83, 0, 0.17, 1);
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    background: var(--color-void);
+  }
+
+  /* Lenis drives scroll via transform; native smooth scroll would fight it. */
+  html.lenis,
+  html.lenis body {
+    height: auto;
+  }
+
+  .lenis.lenis-smooth {
+    scroll-behavior: auto !important;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-void);
+    color: var(--color-chalk);
+    font-family: var(--font-body);
+    font-synthesis-weight: none;
+    overflow-x: clip;
+  }
+
+  ::selection {
+    background: var(--color-acid);
+    color: var(--color-void);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-acid);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  /* The cursor is replaced by a custom canvas element on fine-pointer devices. */
+  @media (hover: hover) and (pointer: fine) {
+    body[data-custom-cursor='true'],
+    body[data-custom-cursor='true'] * {
+      cursor: none;
+    }
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .edge-fade {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 8%,
+      #000 92%,
+      transparent
+    );
+  }
+
+  .grain::after {
+    content: '';
+    position: absolute;
+    inset: -50%;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation: grain 0.6s steps(2) infinite;
+  }
+}
+
+@keyframes grain {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-2%, 1%);
+  }
+  50% {
+    transform: translate(1%, -2%);
+  }
+  75% {
+    transform: translate(2%, 2%);
+  }
+}
+
+/* Motion is opt-out at the source: every transform/animation collapses. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .grain::after {
+    animation: none;
+  }
+}

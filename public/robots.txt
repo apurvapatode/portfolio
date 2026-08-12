@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://apurvapatode.com/sitemap.xml

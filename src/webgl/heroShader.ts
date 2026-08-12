@@ -1,0 +1,133 @@
+export const HERO_VERT = /* glsl */ `#version 300 es
+layout(location = 0) in vec2 aPosition;
+out vec2 vUv;
+
+void main() {
+  vUv = aPosition * 0.5 + 0.5;
+  gl_Position = vec4(aPosition, 0.0, 1.0);
+}
+`
+
+/**
+ * Domain-warped FBM over a signed-distance metaball field.
+ *
+ * The visual is built in three passes inside one fragment shader:
+ *   1. A slow-drifting fluid field (FBM warped by another FBM) for the base.
+ *   2. Three metaballs smooth-min'd together, one of which tracks the pointer.
+ *   3. Chromatic offset + film grain + vignette as the finishing grade.
+ */
+export const HERO_FRAG = /* glsl */ `#version 300 es
+precision highp float;
+
+in vec2 vUv;
+out vec4 fragColor;
+
+uniform vec2  uResolution;
+uniform vec2  uPointer;      // normalised, smoothed on the CPU
+uniform float uTime;
+uniform float uIntensity;    // 0..1 master dial, eased on scroll
+uniform vec3  uColorA;
+uniform vec3  uColorB;
+uniform vec3  uColorC;
+
+// -- Hash / noise ----------------------------------------------------------
+
+vec2 hash2(vec2 p) {
+  p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+  return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+}
+
+// Gradient noise. Quintic interpolant keeps the second derivative continuous,
+// which matters here because we feed the output back in as a warp.
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+
+  return mix(
+    mix(dot(hash2(i + vec2(0.0, 0.0)), f - vec2(0.0, 0.0)),
+        dot(hash2(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0)), u.x),
+    mix(dot(hash2(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0)),
+        dot(hash2(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 p) {
+  float value = 0.0;
+  float amplitude = 0.5;
+  // 5 octaves: past this the detail lands below one pixel at our DPR cap.
+  for (int i = 0; i < 5; i++) {
+    value += amplitude * noise(p);
+    p *= 2.02;          // non-integer lacunarity avoids axis-aligned banding
+    amplitude *= 0.5;
+  }
+  return value;
+}
+
+// -- Field construction ----------------------------------------------------
+
+float warpedField(vec2 p, float t) {
+  vec2 q = vec2(fbm(p + vec2(0.0, t * 0.12)), fbm(p + vec2(5.2, 1.3 - t * 0.09)));
+  vec2 r = vec2(
+    fbm(p + 4.0 * q + vec2(1.7, 9.2) + t * 0.06),
+    fbm(p + 4.0 * q + vec2(8.3, 2.8) - t * 0.05)
+  );
+  return fbm(p + 4.0 * r);
+}
+
+// Polynomial smooth minimum — merges the metaballs without a crease.
+float smin(float a, float b, float k) {
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+float metaballs(vec2 uv, vec2 pointer, float t) {
+  float d = length(uv - pointer) - 0.22;
+  d = smin(d, length(uv - vec2(sin(t * 0.4) * 0.5, cos(t * 0.31) * 0.3)) - 0.3, 0.45);
+  d = smin(d, length(uv - vec2(cos(t * 0.23) * 0.6, sin(t * 0.37) * 0.4)) - 0.26, 0.45);
+  return d;
+}
+
+void main() {
+  // Aspect-correct coordinates centred on the viewport.
+  vec2 uv = (gl_FragCoord.xy - 0.5 * uResolution) / min(uResolution.x, uResolution.y);
+  float t = uTime * 0.35;
+
+  vec2 pointer = uPointer * vec2(uResolution.x / uResolution.y, 1.0) * 0.5;
+
+  float field = warpedField(uv * 1.8, t);
+  float balls = metaballs(uv, pointer, t);
+
+  // Pointer proximity locally boosts the warp so the field "leans" toward you.
+  float proximity = 1.0 - smoothstep(0.0, 0.9, length(uv - pointer));
+  float mask = smoothstep(0.35, -0.15, balls) * (0.55 + 0.45 * proximity);
+  float blend = clamp(field * 1.6 + 0.5, 0.0, 1.0);
+
+  vec3 color = mix(uColorA, uColorB, blend);
+
+  // The accent is deliberately restrained: it reads as a glow inside the
+  // metaball rather than flooding the frame, so headline type stays legible.
+  color = mix(color, uColorC, mask * 0.16 * uIntensity);
+
+  // Fresnel-ish rim where the metaball boundary crosses the noise ridges.
+  // This thin bright edge is where the accent colour actually earns its place.
+  float rim = smoothstep(0.05, 0.0, abs(balls - 0.02));
+  color += uColorC * rim * 0.5 * uIntensity;
+
+  // Cheap chromatic aberration: resample the field at a radial offset.
+  vec2 dir = normalize(uv + 1e-5);
+  float radius = length(uv);
+  float shifted = warpedField((uv - dir * 0.006 * radius) * 1.8, t);
+  color.r = mix(color.r, mix(uColorA, uColorB, clamp(shifted * 1.6 + 0.5, 0.0, 1.0)).r, 0.6);
+
+  // Grain, tied to time so it shimmers rather than sitting static.
+  float grain = fract(sin(dot(gl_FragCoord.xy + t, vec2(12.9898, 78.233))) * 43758.5453);
+  color += (grain - 0.5) * 0.035;
+
+  color *= 1.0 - 0.5 * smoothstep(0.5, 1.25, radius);   // vignette
+  color = pow(max(color, 0.0), vec3(0.9));              // lift the shadows
+
+  fragColor = vec4(color, 1.0);
+}
+`
