@@ -87,35 +87,58 @@ export const PROJECTS: Project[] = [
       'Converted Figma designs into pixel-accurate responsive pages and resolved cross-browser compatibility issues across the marketing surface.',
     metric: { value: 'Pixel', label: 'accurate handoff' },
     accent: '#4ac3ff',
-    href: '#',
+    href: 'https://www.figma.com/design/XOXzSuF0FoFLMTEdxcz0e9/Proof-of-Work--Case-Studies?node-id=0-1',
   },
 ]
 
-export const SERVICES = [
+export type Service = {
+  title: string
+  body: string
+  tags: string[]
+  /**
+   * Turnaround, not price. Pricing stays out of the public copy on purpose (see
+   * the budget-band note in EnquiryForm) — but "how fast" is the question that
+   * actually blocks an enquiry, and answering it costs no anchor.
+   */
+  turnaround: string
+  /** Prefills the enquiry form's work-type select via the #contact deep link. */
+  cta: string
+}
+
+/**
+ * Ordered by ascending scope — a same-week fix through to a full interactive
+ * build — so the list reads as a ladder the reader can place themselves on,
+ * rather than an undifferentiated menu. Keep it at four: the grid is two
+ * columns, and a fifth card strands an orphan in a half-width row.
+ */
+export const SERVICES: Service[] = [
   {
     title: 'Website fixes & small jobs',
-    body: 'Something is broken, misaligned on mobile, or has been on the backlog for months. Send it over — most small fixes are quoted the same day and done inside a week, with no minimum engagement.',
+    body: 'Something is broken, misaligned on mobile, or has been on the backlog for months. Send it over — most small fixes are quoted the same day, with no minimum engagement.',
     tags: ['Bug fixes', 'Responsive', 'Quick turnaround', 'No minimum'],
+    turnaround: 'Quoted same day · done in a week',
+    cta: 'A fix or small change',
   },
   {
-    title: 'Website rebuilds',
-    body: 'Your site is slow, breaks on phones, or nobody left can safely change it. I rebuild it in Next.js or Vite with TypeScript and hand it back documented — so the next change is a task, not a rescue project.',
-    tags: ['Next.js', 'Vite', 'TypeScript', 'Responsive'],
-  },
-  {
-    title: 'Performance, SEO & accessibility',
-    body: 'Slow pages lose visitors before they read a word. I profile what is actually costing you load time, fix it, and show you the Lighthouse numbers from before and after — so the improvement is something you can see, not something you take on trust.',
-    tags: ['Core Web Vitals', 'SSR', 'WCAG', 'Lighthouse'],
+    title: 'Rebuilds, performance & SEO',
+    body: 'Your site is slow, breaks on phones, or nobody left can safely change it. I rebuild it in Next.js or Vite with TypeScript, fix what is actually costing you load time, and hand it back documented — with the Lighthouse numbers from before and after, so the improvement is something you can see rather than take on trust.',
+    tags: ['Next.js', 'TypeScript', 'Core Web Vitals', 'WCAG', 'Lighthouse'],
+    turnaround: 'Typically 3—6 weeks',
+    cta: 'A full site build or rebuild',
   },
   {
     title: 'High-end interactive builds',
-    body: 'WebGL hero sections, GLSL shader effects, and motion design for brand and portfolio sites. Built to survive a Lighthouse audit as well as a design review.',
+    body: 'WebGL hero sections, GLSL shader effects, and motion design for brand and portfolio sites. Built to survive a Lighthouse audit as well as a design review — this site is the working example.',
     tags: ['WebGL', 'GLSL', 'Motion', 'Kinetic Type'],
+    turnaround: 'Scoped per project',
+    cta: 'A full site build or rebuild',
   },
   {
-    title: 'AI-assisted delivery',
-    body: 'I run Claude Code in the build loop for scoping, refactors and typechecked releases. You get a shorter timeline and a lower quote — every line still gets reviewed by me before it ships, and the architecture calls stay human.',
-    tags: ['Claude Code', 'RAG', 'Refactors', 'Typecheck'],
+    title: 'Ongoing support',
+    body: 'A standing arrangement for teams without a frontend person — changes, fixes and dependency upkeep handled as they come up, so small things stop queueing into a rescue project. Retained monthly or drawn down as hours.',
+    tags: ['Retainer', 'Maintenance', 'Dependency upkeep', 'On call'],
+    turnaround: 'Monthly retainer or hourly',
+    cta: 'Ongoing support',
   },
 ]
 

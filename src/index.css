@@ -20,6 +20,28 @@
   --ease-in-out-quint: cubic-bezier(0.83, 0, 0.17, 1);
 }
 
+/**
+ * Light theme. The tokens above are named by role, not by literal colour —
+ * `void` is "furthest back", `chalk` is "brightest text" — so inverting the
+ * ramp here flips the whole site without touching a single component class.
+ *
+ * The accents are darkened rather than reused: #d7ff3e on white sits at about
+ * 1.4:1 contrast, which fails WCAG badly. The light variants below hold ≥4.5:1
+ * against the light background.
+ */
+:root[data-theme='light'] {
+  --color-void: #f7f7f9;
+  --color-ink: #ffffff;
+  --color-smoke: #eeeef2;
+  --color-ash: #d7d7e0;
+  --color-mute: #6a6a78;
+  --color-bone: #3f3f4c;
+  --color-chalk: #14141a;
+  --color-acid: #5c7a00;
+  --color-plasma: #4a2fd0;
+  --color-ember: #c2331a;
+}
+
 @layer base {
   *,
   *::before,
@@ -32,6 +54,17 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     background: var(--color-void);
+    color-scheme: dark;
+  }
+
+  :root[data-theme='light'] {
+    color-scheme: light;
+  }
+
+  /* Grain reads as dirt on a light ground; it exists to break up banding in
+     the dark gradients, which light mode does not have. */
+  :root[data-theme='light'] .grain::after {
+    opacity: 0.018;
   }
 
   /* Lenis drives scroll via transform; native smooth scroll would fight it. */

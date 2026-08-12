@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { PROFILE } from '../data/content'
 
 /**
@@ -47,6 +47,28 @@ const TIMELINES = ['ASAP', 'Within a month', '1—3 months', 'Just exploring']
 
 export function EnquiryForm() {
   const [sent, setSent] = useState(false)
+
+  /**
+   * The service cards link to #contact carrying a `data-work` value. Rather than
+   * lifting this state up through the page for one field, the form listens for
+   * those clicks directly — the anchor still does the scrolling natively, and a
+   * visitor arriving from "Rebuilds" lands with that option already chosen.
+   *
+   * Unrecognised values are ignored so a typo in the card data degrades to the
+   * default rather than wedging the select on a value with no matching option.
+   */
+  const [workType, setWorkType] = useState(WORK_TYPES[0])
+
+  useEffect(() => {
+    function onClick(event: MouseEvent) {
+      const link = (event.target as HTMLElement | null)?.closest?.('a[data-work]')
+      const requested = link?.getAttribute('data-work')
+      if (requested && WORK_TYPES.includes(requested)) setWorkType(requested)
+    }
+
+    document.addEventListener('click', onClick)
+    return () => document.removeEventListener('click', onClick)
+  }, [])
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -123,7 +145,8 @@ export function EnquiryForm() {
           id="enq-work-type"
           name="workType"
           className={selectField}
-          defaultValue={WORK_TYPES[0]}
+          value={workType}
+          onChange={(event) => setWorkType(event.target.value)}
         >
           {WORK_TYPES.map((option) => (
             <option key={option} value={option} className="bg-void">

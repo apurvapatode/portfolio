@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { PROFILE } from '../data/content'
+import { ThemeToggle } from './ThemeToggle'
 
 const LINKS = [
   { label: 'Work', href: '#work' },
@@ -144,6 +145,8 @@ export function Nav() {
           </ul>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle />
+
             <a
               href="#contact"
               data-cursor="pointer"

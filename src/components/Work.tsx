@@ -35,6 +35,11 @@ function ProjectRow({ project, index }: { project: Project; index: number }) {
   }
 
   const isExternal = project.href.startsWith('http')
+  // Not every external link is a deployed site — the Figma case-study file is
+  // one too — so the hover caption names the destination rather than assuming.
+  const externalLabel = project.href.includes('figma.com')
+    ? 'View in Figma ↗'
+    : 'Visit live site ↗'
 
   return (
     <li
@@ -118,12 +123,16 @@ function ProjectRow({ project, index }: { project: Project; index: number }) {
             className="pointer-events-none absolute left-0 top-0 hidden h-[200px] w-[280px] overflow-hidden rounded-lg border border-white/10 shadow-2xl transition-opacity duration-300 will-change-transform lg:block"
             style={{
               opacity: hovered ? 1 : 0,
-              background: `linear-gradient(135deg, ${project.accent}, #050506 60%), radial-gradient(circle at 30% 20%, ${project.accent}66, transparent 60%)`,
+              // Fades into the page background rather than a literal near-black,
+              // so the preview does not stay dark in light mode.
+              background: `linear-gradient(135deg, ${project.accent}, var(--color-void) 60%), radial-gradient(circle at 30% 20%, ${project.accent}66, transparent 60%)`,
             }}
           >
-            <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(5,5,6,0.85),transparent_60%)]" />
+            {/* Scrim so the caption stays legible over the accent gradient.
+                color-mix keeps it tied to the theme background. */}
+            <div className="absolute inset-0 bg-[linear-gradient(0deg,color-mix(in_srgb,var(--color-void)_85%,transparent),transparent_60%)]" />
             <span className="absolute bottom-4 left-4 font-mono text-[10px] uppercase tracking-[0.25em] text-chalk">
-              {isExternal ? 'Visit live site ↗' : 'Case study'}
+              {isExternal ? externalLabel : 'Case study'}
             </span>
           </div>
         )}

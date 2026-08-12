@@ -21,7 +21,7 @@ export function Contact() {
       {/* Ambient wash — cheap CSS, no second GL context. */}
       <div
         aria-hidden="true"
-        className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_50%_120%,rgba(109,74,255,0.28),transparent_60%),radial-gradient(ellipse_at_20%_0%,rgba(215,255,62,0.08),transparent_50%)]"
+        className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_50%_120%,color-mix(in_srgb,var(--color-plasma)_28%,transparent),transparent_60%),radial-gradient(ellipse_at_20%_0%,color-mix(in_srgb,var(--color-acid)_8%,transparent),transparent_50%)]"
       />
 
       <div ref={ref} className="mx-auto max-w-[1600px]">

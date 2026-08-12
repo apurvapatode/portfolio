@@ -134,6 +134,31 @@
     </script>
   </head>
   <body>
+    <!-- Runs before first paint so a light-mode visitor never sees a dark
+         flash. Deliberately inline and blocking: deferring it to the React
+         bundle would paint the default theme first. Mirrors resolveTheme()
+         in src/hooks/useTheme.ts — keep the two in step. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme')
+          var theme =
+            stored === 'dark' || stored === 'light'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light'
+                : 'dark'
+          document.documentElement.dataset.theme = theme
+          if (theme === 'light') {
+            document
+              .querySelector('meta[name="theme-color"]')
+              .setAttribute('content', '#f7f7f9')
+          }
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark'
+        }
+      })()
+    </script>
     <div id="root"></div>
     <noscript>
       <div style="padding: 2rem; color: #f4f4f6; font-family: system-ui">

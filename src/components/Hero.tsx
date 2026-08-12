@@ -56,6 +56,9 @@ export function Hero() {
       {/* Legibility scrim. The shader is bright in places and display type sits
           directly on it, so this guarantees text contrast regardless of where
           the fluid field happens to be at any given frame. */}
+      {/* Both scrims are the page background at partial alpha, so this works in
+          either theme: it pushes the shader toward the ground colour rather
+          than toward black specifically. */}
       <div className="absolute inset-0 -z-0 bg-void/55" />
       <div className="absolute inset-0 -z-0 bg-gradient-to-b from-void/80 via-transparent to-void" />
 
