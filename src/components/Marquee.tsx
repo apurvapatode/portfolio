@@ -23,11 +23,35 @@ export function Marquee() {
     let lastScroll = window.scrollY
     let frame = 0
 
+    // `scrollWidth` forces a synchronous layout, so it is measured here and on
+    // resize rather than per frame — reading it inside the loop made the
+    // browser re-lay-out the track 60 times a second for a value that only
+    // changes when the viewport or font does.
+    let half = track.scrollWidth / 2
+    const measure = () => {
+      half = track.scrollWidth / 2
+    }
+    const resizeObserver = new ResizeObserver(measure)
+    resizeObserver.observe(track)
+
     const onScroll = () => {
       const current = window.scrollY
       velocity += (current - lastScroll) * 0.28
       lastScroll = current
     }
+
+    // Idles when scrolled past. The marquee sits high on the page, so without
+    // this it keeps compositing a transform behind every section below it.
+    let visible = true
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const wasVisible = visible
+        visible = entry.isIntersecting
+        if (visible && !wasVisible) frame = requestAnimationFrame(tick)
+      },
+      { threshold: 0 },
+    )
+    observer.observe(track)
 
     const tick = () => {
       velocity *= 0.92 // friction back toward the idle speed
@@ -35,14 +59,13 @@ export function Marquee() {
 
       // The track renders its content twice; wrapping at the halfway point
       // makes the loop seamless.
-      const half = track.scrollWidth / 2
       if (half > 0) {
         if (offset <= -half) offset += half
         if (offset > 0) offset -= half
       }
 
       track.style.transform = `translate3d(${offset.toFixed(2)}px, 0, 0)`
-      frame = requestAnimationFrame(tick)
+      if (visible) frame = requestAnimationFrame(tick)
     }
 
     window.addEventListener('scroll', onScroll, { passive: true })
@@ -50,6 +73,8 @@ export function Marquee() {
 
     return () => {
       window.removeEventListener('scroll', onScroll)
+      resizeObserver.disconnect()
+      observer.disconnect()
       cancelAnimationFrame(frame)
     }
   }, [reducedMotion])

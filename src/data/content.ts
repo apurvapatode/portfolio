@@ -18,14 +18,20 @@ export const PROFILE = {
   availability: 'Available for new clients',
 }
 
+/**
+ * Public Figma file with the written case studies. Verified reachable and
+ * publicly shared — Figma's oEmbed returns real metadata ("Proof of Work —
+ * Case Studies") and a live thumbnail, so the share link is genuinely open and
+ * not just working for a logged-in author.
+ */
+export const CASE_STUDIES_URL =
+  'https://www.figma.com/design/XOXzSuF0FoFLMTEdxcz0e9/Proof-of-Work--Case-Studies?node-id=0-1'
+
 export const SOCIALS = [
   { label: 'GitHub', href: 'https://github.com/apurvapatode' },
   { label: 'LinkedIn', href: 'https://www.linkedin.com/in/apurva-patode/' },
   { label: 'Scholarlify', href: 'https://scholarlify.com' },
-  {
-    label: 'Case studies',
-    href: 'https://www.figma.com/design/XOXzSuF0FoFLMTEdxcz0e9/Proof-of-Work--Case-Studies?node-id=0-1',
-  },
+  { label: 'Case studies', href: CASE_STUDIES_URL },
 ]
 
 export type Project = {
@@ -78,16 +84,16 @@ export const PROJECTS: Project[] = [
     href: '#',
   },
   {
-    id: 'technoworld',
+    id: 'case-studies',
     title: 'Figma → Production',
-    client: 'Technoworld Solutions · Internship',
+    client: 'Written case studies',
     year: '2022',
     discipline: ['Responsive', 'Cross-browser', 'CSS'],
     summary:
       'Converted Figma designs into pixel-accurate responsive pages and resolved cross-browser compatibility issues across the marketing surface.',
     metric: { value: 'Pixel', label: 'accurate handoff' },
     accent: '#4ac3ff',
-    href: 'https://www.figma.com/design/XOXzSuF0FoFLMTEdxcz0e9/Proof-of-Work--Case-Studies?node-id=0-1',
+    href: CASE_STUDIES_URL,
   },
 ]
 

@@ -1,34 +1,64 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { SERVICES, type Service } from '../data/content'
 import { KineticText } from './KineticText'
 import { useInView } from '../hooks/useInView'
 import { useReducedMotion } from '../hooks/useReducedMotion'
+import { useMagnetic } from '../hooks/useMagnetic'
 
 function ServiceCard({ service, index }: { service: Service; index: number }) {
   const { ref, inView } = useInView<HTMLElement>()
   const cardRef = useRef<HTMLDivElement>(null)
   const reducedMotion = useReducedMotion()
+  // Gentle pull — the CTA sits inside an already-tilting card, so a strong
+  // magnet on top of that reads as instability rather than polish.
+  const ctaRef = useMagnetic<HTMLAnchorElement>(0.22, 70)
 
   // 3D tilt toward the pointer. Perspective lives on the parent so the card
   // rotates in place rather than shearing.
+  //
+  // The rect is cached on enter and the writes are batched into one rAF: a
+  // high-polling mouse fires pointermove several times per frame, and the old
+  // version did a getBoundingClientRect (a layout read) plus three style writes
+  // on every one of them.
+  const rectRef = useRef<DOMRect | null>(null)
+  const frameRef = useRef(0)
+  const pointerRef = useRef({ x: 0, y: 0 })
+
+  const onPointerEnter = () => {
+    if (reducedMotion) return
+    rectRef.current = cardRef.current?.getBoundingClientRect() ?? null
+  }
+
   const onPointerMove = (event: React.PointerEvent) => {
     if (reducedMotion) return
     const card = cardRef.current
-    if (!card) return
+    const rect = rectRef.current
+    if (!card || !rect) return
 
-    const rect = card.getBoundingClientRect()
-    const px = (event.clientX - rect.left) / rect.width - 0.5
-    const py = (event.clientY - rect.top) / rect.height - 0.5
+    pointerRef.current.x = event.clientX
+    pointerRef.current.y = event.clientY
 
-    card.style.transform = `rotateY(${px * 9}deg) rotateX(${-py * 9}deg) translateZ(0)`
-    card.style.setProperty('--glow-x', `${(px + 0.5) * 100}%`)
-    card.style.setProperty('--glow-y', `${(py + 0.5) * 100}%`)
+    if (frameRef.current) return
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = 0
+      const px = (pointerRef.current.x - rect.left) / rect.width - 0.5
+      const py = (pointerRef.current.y - rect.top) / rect.height - 0.5
+
+      card.style.transform = `rotateY(${px * 9}deg) rotateX(${-py * 9}deg) translateZ(0)`
+      card.style.setProperty('--glow-x', `${(px + 0.5) * 100}%`)
+      card.style.setProperty('--glow-y', `${(py + 0.5) * 100}%`)
+    })
   }
 
   const onPointerLeave = () => {
+    cancelAnimationFrame(frameRef.current)
+    frameRef.current = 0
+    rectRef.current = null
     const card = cardRef.current
     if (card) card.style.transform = ''
   }
+
+  useEffect(() => () => cancelAnimationFrame(frameRef.current), [])
 
   return (
     <article
@@ -42,6 +72,7 @@ function ServiceCard({ service, index }: { service: Service; index: number }) {
     >
       <div
         ref={cardRef}
+        onPointerEnter={onPointerEnter}
         onPointerMove={onPointerMove}
         onPointerLeave={onPointerLeave}
         className="group relative h-full overflow-hidden rounded-2xl border border-ash bg-ink/60 p-8 backdrop-blur-sm transition-[transform,border-color,background-color] duration-300 ease-out will-change-transform hover:border-bone/30 hover:bg-smoke/60 md:p-10"
@@ -90,6 +121,7 @@ function ServiceCard({ service, index }: { service: Service; index: number }) {
               {service.turnaround}
             </span>
             <a
+              ref={ctaRef}
               href="#contact"
               data-work={service.cta}
               data-cursor="pointer"

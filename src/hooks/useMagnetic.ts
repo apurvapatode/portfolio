@@ -46,8 +46,20 @@ export function useMagnetic<T extends HTMLElement>(strength = 0.35, radius = 120
       }
     }
 
+    // The element's box is cached instead of measured per pointermove. Every
+    // instance of this hook listens on window, so with several magnetic
+    // elements on a page the old per-event getBoundingClientRect meant N forced
+    // layouts for each of the ~120 events a second a fast mouse emits.
+    //
+    // Invalidated on scroll and resize — the only things that move the box
+    // while the pointer is active. `null` means "re-measure on next use".
+    let rect: DOMRect | null = null
+    const invalidate = () => {
+      rect = null
+    }
+
     const onPointerMove = (event: PointerEvent) => {
-      const rect = element.getBoundingClientRect()
+      rect ??= element.getBoundingClientRect()
       const dx = event.clientX - (rect.left + rect.width / 2)
       const dy = event.clientY - (rect.top + rect.height / 2)
 
@@ -55,6 +67,9 @@ export function useMagnetic<T extends HTMLElement>(strength = 0.35, radius = 120
         target.x = dx * strength
         target.y = dy * strength
       } else {
+        // Already at rest and still out of range: nothing to animate, so skip
+        // waking the loop.
+        if (target.x === 0 && target.y === 0 && !running) return
         target.x = 0
         target.y = 0
       }
@@ -68,11 +83,15 @@ export function useMagnetic<T extends HTMLElement>(strength = 0.35, radius = 120
     }
 
     window.addEventListener('pointermove', onPointerMove, { passive: true })
+    window.addEventListener('scroll', invalidate, { passive: true })
+    window.addEventListener('resize', invalidate, { passive: true })
     element.addEventListener('pointerleave', onLeave)
 
     return () => {
       cancelAnimationFrame(frame)
       window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('scroll', invalidate)
+      window.removeEventListener('resize', invalidate)
       element.removeEventListener('pointerleave', onLeave)
       element.style.transform = ''
     }

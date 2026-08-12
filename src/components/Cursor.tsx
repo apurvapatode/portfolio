@@ -31,11 +31,21 @@ export function Cursor() {
     let targetScale = 1
     let frame = 0
 
+    // Cached so the DOM walk below only runs when the pointer actually crosses
+    // into a different element, not on every one of the ~120 pointermove events
+    // a second a high-polling-rate mouse delivers.
+    let lastTarget: Element | null = null
+
     const onMove = (event: PointerEvent) => {
       pointer.x = event.clientX
       pointer.y = event.clientY
+      wake()
 
-      const target = (event.target as HTMLElement)?.closest<HTMLElement>('[data-cursor]')
+      const eventTarget = event.target as Element | null
+      if (eventTarget === lastTarget) return
+      lastTarget = eventTarget
+
+      const target = (eventTarget as HTMLElement)?.closest<HTMLElement>('[data-cursor]')
       const mode = target?.dataset.cursor
 
       if (mode) {
@@ -58,12 +68,41 @@ export function Cursor() {
       dot.style.transform = `translate3d(${pointer.x}px, ${pointer.y}px, 0) translate(-50%, -50%)`
       ring.style.transform = `translate3d(${ringPos.x}px, ${ringPos.y}px, 0) translate(-50%, -50%) scale(${scale.toFixed(3)})`
 
+      // Park the loop once the ring has caught up and the scale has settled.
+      // Previously this ran at 60fps for the life of the page even with a
+      // motionless pointer, competing for frames with Lenis and the shader.
+      // Thresholds are sub-pixel, so stopping is invisible.
+      const settled =
+        Math.abs(pointer.x - ringPos.x) < 0.1 &&
+        Math.abs(pointer.y - ringPos.y) < 0.1 &&
+        Math.abs(targetScale - scale) < 0.001
+
+      if (settled) {
+        running = false
+        return
+      }
       frame = requestAnimationFrame(tick)
     }
-    frame = requestAnimationFrame(tick)
 
-    const onDown = () => (targetScale *= 0.8)
-    const onUp = () => (targetScale = targetScale / 0.8)
+    // Restarted by any input that changes a target the loop is easing toward.
+    let running = false
+    const wake = () => {
+      if (running) return
+      running = true
+      frame = requestAnimationFrame(tick)
+    }
+    wake()
+
+    // Each of these retargets something the loop eases toward, so each has to
+    // wake it — a parked loop would otherwise never animate the change.
+    const onDown = () => {
+      targetScale *= 0.8
+      wake()
+    }
+    const onUp = () => {
+      targetScale = targetScale / 0.8
+      wake()
+    }
     // Hide when the pointer leaves the window so it can't stick to an edge.
     const onEnter = () => (dot.style.opacity = ring.style.opacity = '1')
     const onLeave = () => (dot.style.opacity = ring.style.opacity = '0')

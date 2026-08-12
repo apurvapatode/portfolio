@@ -1,9 +1,11 @@
 import { PROCESS, STATS } from '../data/content'
 import { KineticText } from './KineticText'
 import { useInView } from '../hooks/useInView'
+import { useCountUp } from '../hooks/useCountUp'
 
 function Stat({ stat, index }: { stat: (typeof STATS)[number]; index: number }) {
   const { ref, inView } = useInView<HTMLDivElement>()
+  const valueRef = useCountUp<HTMLDivElement>(stat.value, inView)
 
   return (
     <div
@@ -15,7 +17,12 @@ function Stat({ stat, index }: { stat: (typeof STATS)[number]; index: number }) 
         transition: `opacity 0.7s ease ${index * 0.1}s, transform 0.8s var(--ease-out-expo) ${index * 0.1}s`,
       }}
     >
-      <div className="font-display text-[clamp(2.5rem,6vw,4.5rem)] font-semibold leading-none tracking-tight text-chalk">
+      {/* `tabular-nums` stops the digits jittering the layout mid-count, and the
+          authored value stays in the DOM for assistive tech and no-JS. */}
+      <div
+        ref={valueRef}
+        className="font-display text-[clamp(2.5rem,6vw,4.5rem)] font-semibold leading-none tracking-tight text-chalk [font-variant-numeric:tabular-nums]"
+      >
         {stat.value}
       </div>
       <div className="mt-3 font-mono text-[11px] uppercase tracking-[0.2em] text-mute">

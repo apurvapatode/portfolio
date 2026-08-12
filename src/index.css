@@ -129,7 +129,15 @@
     opacity: 0.035;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
     animation: grain 0.6s steps(2) infinite;
+    /* The layer is 4x the viewport area and repaints forever. Promoting it to
+       its own compositor layer keeps that repaint off the main thread. */
+    will-change: transform;
   }
+
+  /* `content-visibility: auto` was tried here and removed: tracing showed it
+     raised UpdateLayoutTree noticeably, because each section re-lays-out every
+     time it crosses the viewport boundary. The grain layers are cheap to
+     composite once promoted (above), so there was nothing left for it to save. */
 }
 
 @keyframes grain {

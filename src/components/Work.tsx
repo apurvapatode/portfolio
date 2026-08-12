@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { PROJECTS, type Project } from '../data/content'
 import { KineticText } from './KineticText'
 import { useInView } from '../hooks/useInView'
 import { useReducedMotion } from '../hooks/useReducedMotion'
+import { useScrollProgress } from '../hooks/useScrollProgress'
 
 /**
  * Case-study list. Each row is a link that skews toward the pointer on hover
@@ -19,20 +20,72 @@ function ProjectRow({ project, index }: { project: Project; index: number }) {
   const previewRef = useRef<HTMLDivElement>(null)
   const [hovered, setHovered] = useState(false)
 
-  const onPointerMove = (event: React.PointerEvent) => {
-    if (reducedMotion) return
+  // Rect cached on enter, writes batched to one rAF — same reasoning as the
+  // service cards: pointermove outruns the frame rate, and getBoundingClientRect
+  // inside the handler forces a layout on each of those extra events.
+  const rectRef = useRef<DOMRect | null>(null)
+  const frameRef = useRef(0)
+  const pointRef = useRef({ x: 0, y: 0 })
+
+  /**
+   * Positions the preview from the last known pointer position, in viewport
+   * coordinates.
+   *
+   * The pointer is stored in viewport space rather than row space on purpose:
+   * the card is absolutely positioned inside the row, so its offset has to be
+   * recomputed against the row's *current* rect. Storing a row-relative offset
+   * instead meant a hover held across a scroll kept painting the card at the
+   * offset from where the row used to be — a drift of exactly the scroll
+   * distance (~215px for one wheel notch).
+   */
+  const place = () => {
     const preview = previewRef.current
     const row = rowRef.current
     if (!preview || !row) return
 
-    const rect = row.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
+    const rect = (rectRef.current ??= row.getBoundingClientRect())
+    const x = pointRef.current.x - rect.left
+    const y = pointRef.current.y - rect.top
 
-    // Preview tracks the cursor; the tilt is derived from vertical offset so it
-    // feels like the card is hinged on the pointer.
+    // Tilt derived from vertical offset so it feels hinged on the pointer.
     preview.style.transform = `translate3d(${x - 140}px, ${y - 100}px, 0) rotate(${((y / rect.height) * 2 - 1) * 6}deg)`
   }
+
+  const schedule = () => {
+    if (frameRef.current) return
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = 0
+      place()
+    })
+  }
+
+  const onPointerMove = (event: React.PointerEvent) => {
+    if (reducedMotion) return
+    pointRef.current.x = event.clientX
+    pointRef.current.y = event.clientY
+    schedule()
+  }
+
+  /**
+   * A hover can outlive a scroll, and the row moves underneath a stationary
+   * pointer. Re-measuring and repainting on scroll keeps the card pinned to the
+   * cursor instead of sliding away with the row.
+   */
+  useEffect(() => {
+    const onScrollOrResize = () => {
+      rectRef.current = null
+      if (!hovered) return
+      schedule()
+    }
+    window.addEventListener('scroll', onScrollOrResize, { passive: true })
+    window.addEventListener('resize', onScrollOrResize, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScrollOrResize)
+      window.removeEventListener('resize', onScrollOrResize)
+      cancelAnimationFrame(frameRef.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hovered])
 
   const isExternal = project.href.startsWith('http')
   // Not every external link is a deployed site — the Figma case-study file is
@@ -55,8 +108,23 @@ function ProjectRow({ project, index }: { project: Project; index: number }) {
         href={project.href}
         data-cursor={isExternal ? 'view' : 'pointer'}
         {...(isExternal ? { target: '_blank', rel: 'noreferrer noopener' } : {})}
-        onPointerEnter={() => setHovered(true)}
-        onPointerLeave={() => setHovered(false)}
+        onPointerEnter={(event) => {
+          // Re-measured per hover: the row's viewport position changes with
+          // scroll, so a rect cached across hovers would offset the preview.
+          rectRef.current = rowRef.current?.getBoundingClientRect() ?? null
+          // Seeded here so the card is already under the cursor on the first
+          // frame, rather than animating in from a stale position.
+          pointRef.current.x = event.clientX
+          pointRef.current.y = event.clientY
+          if (!reducedMotion) schedule()
+          setHovered(true)
+        }}
+        onPointerLeave={() => {
+          cancelAnimationFrame(frameRef.current)
+          frameRef.current = 0
+          rectRef.current = null
+          setHovered(false)
+        }}
         onPointerMove={onPointerMove}
         className="group relative block overflow-hidden border-t border-ash/70 py-10 transition-colors duration-500 hover:border-chalk/40 md:py-14"
       >
@@ -142,15 +210,37 @@ function ProjectRow({ project, index }: { project: Project; index: number }) {
 }
 
 export function Work() {
+  const sectionRef = useScrollProgress<HTMLElement>()
+
   return (
-    <section id="work" className="relative px-6 py-28 md:px-10 md:py-40">
+    <section
+      ref={sectionRef}
+      id="work"
+      className="relative overflow-hidden px-6 py-28 md:px-10 md:py-40"
+    >
+      {/* Scroll-driven accent rail. --progress comes from useScrollProgress, so
+          this animates entirely in the compositor with no React involvement. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute left-0 top-0 hidden h-full w-px origin-top bg-gradient-to-b from-transparent via-acid/40 to-transparent md:block"
+        style={{ transform: 'scaleY(calc(var(--progress, 0) * 1.6))' }}
+      />
+
       <div className="mx-auto max-w-[1600px]">
         <header className="mb-16 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-          <KineticText
-            as="h2"
-            text="Selected work"
-            className="font-display text-[clamp(2.5rem,8vw,7rem)] font-semibold uppercase leading-[0.85] tracking-[-0.04em]"
-          />
+          {/* Drifts up slightly as the section passes — a shallow parallax that
+              separates the heading from the rows without moving enough to read
+              as motion sickness. */}
+          <div
+            className="will-change-transform"
+            style={{ transform: 'translate3d(0, calc(var(--progress, 0.5) * -2.5rem), 0)' }}
+          >
+            <KineticText
+              as="h2"
+              text="Selected work"
+              className="font-display text-[clamp(2.5rem,8vw,7rem)] font-semibold uppercase leading-[0.85] tracking-[-0.04em]"
+            />
+          </div>
           <p className="max-w-sm font-mono text-xs uppercase leading-relaxed tracking-[0.2em] text-mute">
             Production frontends — shipped, measured, and still running.
           </p>
@@ -161,6 +251,7 @@ export function Work() {
             <ProjectRow key={project.id} project={project} index={index} />
           ))}
         </ul>
+
       </div>
     </section>
   )
