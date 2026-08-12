@@ -106,6 +106,26 @@ export function Hero() {
       <div className="absolute inset-0 -z-0 bg-void/55" />
       <div className="absolute inset-0 -z-0 bg-gradient-to-b from-void/80 via-transparent to-void" />
 
+      {/* Top-right, under the nav. The invitation matters as much as the
+          feature: "this background is live code you can edit" is the whole
+          point, and nobody discovers that from an unlabelled icon. Hidden
+          while the panel is open so it never sits under the sheet on mobile. */}
+      {!labOpen && (
+        <button
+          type="button"
+          onClick={() => setLabOpen(true)}
+          data-cursor="pointer"
+          aria-expanded={labOpen}
+          className="group absolute right-6 top-20 z-20 inline-flex items-center gap-2 rounded-full border border-ash bg-void/70 px-4 py-2.5 text-[12px] text-bone backdrop-blur-md transition-colors hover:border-acid hover:text-acid md:right-10 md:top-24"
+        >
+          <span
+            aria-hidden="true"
+            className="inline-block h-1.5 w-1.5 rounded-full bg-acid transition-transform group-hover:scale-125"
+          />
+          Play with this background
+        </button>
+      )}
+
       <div className="relative z-10 mx-auto flex w-full max-w-[1600px] flex-1 flex-col justify-center">
         <div className="overflow-hidden">
           <p
@@ -146,11 +166,11 @@ export function Hero() {
               className="max-w-xl text-balance text-lg leading-relaxed text-bone md:text-xl"
               style={reveal(0.44)}
             >
-              I'm {PROFILE.name.split(' ')[0]} — I fix broken websites and build
-              fast, accessible ones. From a one-off bug nobody else will touch to
-              a full rebuild. Two years shipping to 5,000+ users, with an
-              AI-assisted workflow that cuts the timeline without cutting the
-              quality bar.
+              I'm {PROFILE.name.split(' ')[0]}. I fix broken websites and build
+              fast, accessible ones — for 5,000+ users in production, and for
+              teams who need the small things handled before they turn into a
+              rescue project. AI in the loop keeps timelines short; the quality
+              bar stays mine.
             </p>
           </div>
 
@@ -191,24 +211,6 @@ export function Hero() {
           {PROFILE.availability}
         </span>
         <span>{PROFILE.location}</span>
-
-        {/* The invitation matters as much as the feature: "this background is
-            a real shader and you can edit it" is the whole point, and nobody
-            discovers that from an unlabelled icon. */}
-        <button
-          type="button"
-          onClick={() => setLabOpen((open) => !open)}
-          data-cursor="pointer"
-          aria-expanded={labOpen}
-          className="group inline-flex items-center gap-2 rounded-full border border-ash px-4 py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-bone transition-colors hover:border-acid hover:text-acid"
-        >
-          <span
-            aria-hidden="true"
-            className="inline-block h-1.5 w-1.5 rounded-full bg-acid transition-transform group-hover:scale-125"
-          />
-          Edit this shader
-        </button>
-
         <span aria-hidden="true" className="hidden md:inline">
           Scroll ↓
         </span>

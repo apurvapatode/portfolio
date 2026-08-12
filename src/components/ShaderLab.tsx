@@ -62,9 +62,11 @@ export function ShaderLab({
 
   if (!open) return null
 
-  // Anchored top-right on desktop so it never covers the hero CTA or the
-  // trigger button in the bottom bar; full-width sheet on small screens, where
-  // a 380px floating panel would leave no shader visible at all.
+  // Anchored top-right on desktop, directly under the trigger that opens it —
+  // the panel appears where the click happened rather than across the screen.
+  // The trigger hides itself while this is open, so the overlap is moot. On
+  // small screens it becomes a full-width bottom sheet, since a 380px floating
+  // panel would leave almost no shader visible behind it.
   return (
     <div
       ref={panelRef}
@@ -72,51 +74,61 @@ export function ShaderLab({
       aria-modal="false"
       aria-labelledby={headingId}
       tabIndex={-1}
-      className="fixed inset-x-3 bottom-3 z-50 flex max-h-[70svh] flex-col overflow-hidden rounded-2xl border border-ash bg-ink/95 shadow-2xl backdrop-blur-xl outline-none md:inset-x-auto md:bottom-auto md:right-4 md:top-24 md:max-h-[min(78svh,640px)] md:w-[380px]"
+      // Snaps the custom cursor's trailing ring to 1:1 in here — see Cursor.tsx.
+      data-cursor-precise
+      className="fixed inset-x-3 bottom-3 z-50 flex max-h-[70svh] flex-col overflow-hidden rounded-2xl border border-ash bg-ink/95 shadow-2xl backdrop-blur-xl outline-none md:inset-x-auto md:bottom-auto md:right-6 md:top-24 md:max-h-[min(78svh,640px)] md:w-[380px]"
     >
-      <header className="flex items-center justify-between gap-3 border-b border-ash px-4 py-3">
+      <header className="flex items-start justify-between gap-3 border-b border-ash px-4 py-3">
         <div>
-          <h2
-            id={headingId}
-            className="font-mono text-[11px] uppercase tracking-[0.2em] text-chalk"
-          >
-            Shader Lab
+          <h2 id={headingId} className="text-sm font-medium text-chalk">
+            Play with the background
           </h2>
-          <p className="mt-0.5 text-[10px] text-mute">
-            Live GLSL — edits recompile in-browser
+          <p className="mt-1 text-[11px] leading-relaxed text-mute">
+            Everything behind this panel is drawn by code. Drag a slider and
+            watch it change.
           </p>
         </div>
         <button
           type="button"
           onClick={onClose}
           data-cursor="pointer"
-          aria-label="Close shader lab"
-          className="rounded-full border border-ash px-2.5 py-1 font-mono text-[11px] text-bone transition-colors hover:border-chalk hover:text-chalk"
+          aria-label="Close"
+          className="shrink-0 rounded-full border border-ash px-3 py-1 font-mono text-[11px] text-bone transition-colors hover:border-chalk hover:text-chalk"
         >
-           esc
+          Close
         </button>
       </header>
 
-      <nav className="flex border-b border-ash" aria-label="Shader lab sections">
-        {(['params', 'source', 'perf'] as Tab[]).map((id) => (
+      <nav className="flex border-b border-ash" aria-label="Sections">
+        {([
+          ['params', 'Controls'],
+          ['source', 'The code'],
+          ['perf', 'Speed'],
+        ] as [Tab, string][]).map(([id, name]) => (
           <button
             key={id}
             type="button"
             onClick={() => setTab(id)}
             data-cursor="pointer"
             aria-current={tab === id ? 'true' : undefined}
-            className={`flex-1 px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.15em] transition-colors ${
+            className={`flex-1 px-3 py-2.5 text-[12px] transition-colors ${
               tab === id
-                ? 'bg-smoke text-chalk'
+                ? 'bg-smoke font-medium text-chalk'
                 : 'text-mute hover:text-bone'
             }`}
           >
-            {id === 'perf' ? 'GPU' : id}
+            {name}
           </button>
         ))}
       </nav>
 
-      <div className="flex-1 overflow-y-auto overscroll-contain p-4">
+      {/* data-lenis-prevent: Lenis captures wheel events at the window and
+          drives scroll via transform, so without this the page scrolls
+          underneath instead of the panel scrolling internally. */}
+      <div
+        data-lenis-prevent
+        className="flex-1 overflow-y-auto overscroll-contain p-4"
+      >
         {tab === 'params' && (
           <div className="space-y-5">
             <div className="flex flex-wrap gap-1.5">
@@ -135,17 +147,29 @@ export function ShaderLab({
 
             {HERO_PARAMS.map((spec) => {
               const value = params[spec.key]
+              // Percentages read as "how much" far better than raw floats like
+              // 0.006. The real number still matters to the small audience who
+              // wants it, so it sits next to the term in the tooltip title.
+              const pct = Math.round(
+                ((value - spec.min) / (spec.max - spec.min)) * 100,
+              )
               return (
-                <div key={spec.key} className="space-y-1.5">
+                <div key={spec.key} className="space-y-2">
                   <div className="flex items-baseline justify-between gap-3">
                     <label
                       htmlFor={`param-${spec.key}`}
-                      className="font-mono text-[11px] text-chalk"
+                      className="text-[13px] text-chalk"
                     >
-                      {spec.label}
+                      {spec.label}{' '}
+                      <span
+                        className="font-mono text-[10px] text-mute"
+                        title={`${spec.key} = ${value}`}
+                      >
+                        {spec.term}
+                      </span>
                     </label>
-                    <span className="font-mono text-[11px] tabular-nums text-acid">
-                      {spec.integer ? value.toFixed(0) : value.toFixed(3)}
+                    <span className="shrink-0 font-mono text-[11px] tabular-nums text-acid">
+                      {spec.integer ? `${value.toFixed(0)}/${spec.max}` : `${pct}%`}
                     </span>
                   </div>
                   <input
@@ -159,9 +183,11 @@ export function ShaderLab({
                     onChange={(event) =>
                       onParamChange(spec.key, Number(event.target.value))
                     }
-                    className="h-1 w-full cursor-pointer appearance-none rounded-full bg-ash accent-acid"
+                    // h-6 gives a ~24px touch target on mobile while the visual
+                    // track stays thin via the thumb styling in index.css.
+                    className="h-6 w-full cursor-pointer appearance-none bg-transparent accent-acid"
                   />
-                  <p className="text-[10px] leading-relaxed text-mute">
+                  <p className="text-[11px] leading-relaxed text-mute">
                     {spec.hint}
                   </p>
                 </div>
@@ -172,27 +198,29 @@ export function ShaderLab({
               type="button"
               onClick={onReset}
               data-cursor="pointer"
-              className="w-full rounded-full border border-ash px-4 py-2 font-mono text-[11px] text-bone transition-colors hover:border-chalk hover:text-chalk"
+              className="w-full rounded-full border border-ash px-4 py-2.5 text-[12px] text-bone transition-colors hover:border-chalk hover:text-chalk"
             >
-              Reset to shipped values
+              Put everything back
             </button>
           </div>
         )}
 
         {tab === 'source' && (
           <div className="space-y-3">
-            <p className="text-[10px] leading-relaxed text-mute">
-              This is the live fragment shader. Edit and apply — it compiles
-              against the real WebGL2 context. Errors come straight from your
-              GPU driver.
+            <p className="text-[11px] leading-relaxed text-mute">
+              This is the actual code drawing the background, running right now
+              on your graphics card. Change anything and press Compile — if you
+              break it, your GPU's own error message shows up below, and the
+              original keeps running until you fix it.
             </p>
 
             <textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               spellCheck={false}
-              aria-label="Fragment shader source"
-              className="h-64 w-full resize-y rounded-lg border border-ash bg-void p-3 font-mono text-[10px] leading-relaxed text-bone outline-none focus:border-acid"
+              data-lenis-prevent
+              aria-label="Background shader code"
+              className="h-56 w-full resize-y rounded-lg border border-ash bg-void p-3 font-mono text-[10px] leading-relaxed text-bone outline-none focus:border-acid md:h-64"
             />
 
             <div className="flex gap-2">
@@ -201,7 +229,7 @@ export function ShaderLab({
                 onClick={() => onSourceApply(draft)}
                 disabled={!dirty}
                 data-cursor="pointer"
-                className="flex-1 rounded-full bg-acid px-4 py-2 font-mono text-[11px] text-void transition-opacity disabled:opacity-30"
+                className="flex-1 rounded-full bg-acid px-4 py-2.5 text-[12px] font-medium text-void transition-opacity disabled:opacity-30"
               >
                 Compile
               </button>
@@ -212,28 +240,39 @@ export function ShaderLab({
                   setTab('source')
                 }}
                 data-cursor="pointer"
-                className="rounded-full border border-ash px-4 py-2 font-mono text-[11px] text-bone transition-colors hover:border-chalk hover:text-chalk"
+                className="rounded-full border border-ash px-4 py-2.5 text-[12px] text-bone transition-colors hover:border-chalk hover:text-chalk"
               >
-                Restore
+                Undo my edits
               </button>
             </div>
 
             {compileLog && (
-              <pre
+              <div
                 role="status"
-                className={`max-h-32 overflow-auto whitespace-pre-wrap rounded-lg border p-3 font-mono text-[10px] leading-relaxed ${
-                  compileOk
-                    ? 'border-ash text-mute'
-                    : 'border-ember/60 text-ember'
+                className={`space-y-1.5 rounded-lg border p-3 ${
+                  compileOk ? 'border-ash' : 'border-ember/60'
                 }`}
               >
-                {compileLog}
-              </pre>
+                {!compileOk && (
+                  <p className="text-[11px] font-medium text-ember">
+                    That didn't compile — the background is still running the
+                    original.
+                  </p>
+                )}
+                <pre
+                  data-lenis-prevent
+                  className={`max-h-28 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-relaxed ${
+                    compileOk ? 'text-mute' : 'text-ember'
+                  }`}
+                >
+                  {compileLog}
+                </pre>
+              </div>
             )}
 
             {!compileLog && compileOk && (
-              <p role="status" className="font-mono text-[10px] text-acid">
-                ✓ Compiled and linked.
+              <p role="status" className="text-[11px] text-acid">
+                ✓ Compiled — that's your code on screen now.
               </p>
             )}
           </div>

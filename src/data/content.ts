@@ -207,7 +207,7 @@ export const FAQS = [
   },
   {
     q: 'How does AI-assisted delivery change things?',
-    a: 'I run Claude Code in the build loop for scoping, refactors and typechecked releases. That means shorter timelines and lower cost for you — the review, architecture and quality bar stay mine.',
+    a: 'I run Claude Code in the build loop for scoping, refactors and typechecked releases, which is why timelines and costs come in lower than they would otherwise. What it does not mean is generated code shipped unread. Every line goes out under my review, the architecture decisions are mine, and I am the one on the hook when something breaks at 2am.',
   },
   {
     q: 'How fast can you start?',
@@ -215,6 +215,14 @@ export const FAQS = [
   },
   {
     q: 'Do you work with existing teams?',
-    a: 'Often. I embed alongside in-house developers, hand over documented components, and review PRs so the work stays maintainable after I leave.',
+    a: 'Often — it is most of what I do. I embed alongside in-house developers, match the conventions already in the repo rather than importing my own, hand over documented components and review PRs. The aim is that nothing breaks when I leave and nobody has to reverse-engineer my decisions.',
+  },
+  {
+    q: 'Why you and not an agency?',
+    a: 'You get the person doing the work, not an account manager relaying to a team you never meet. Nothing is lost in translation and there is no markup on top of it. The honest tradeoff: I am one person, so I take on fewer projects at once — if I am booked past your date, I will say so upfront rather than stretch the timeline to hold the work.',
+  },
+  {
+    q: 'What if I already have designs?',
+    a: 'Ideal. Send the Figma file and I will build to it, flagging anything that will not survive contact with real content or a small screen before I start rather than after. If you do not have designs, that is workable too — but say so early, because it changes the scope and the price.',
   },
 ]

@@ -35,6 +35,8 @@ export function Cursor() {
     // into a different element, not on every one of the ~120 pointermove events
     // a second a high-polling-rate mouse delivers.
     let lastTarget: Element | null = null
+    // True while the pointer is over a precision surface (the shader lab).
+    let precise = false
 
     const onMove = (event: PointerEvent) => {
       pointer.x = event.clientX
@@ -45,24 +47,35 @@ export function Cursor() {
       if (eventTarget === lastTarget) return
       lastTarget = eventTarget
 
+      // Inside a dense control surface the trailing ring stops reading as
+      // style and starts reading as input lag — you aim at a 16px slider
+      // thumb and the cursor arrives late. Precision work wants a precise
+      // cursor, so the ring snaps to the pointer over anything marked
+      // `data-cursor-precise` and resumes trailing on the way out.
+      precise = !!(eventTarget as HTMLElement)?.closest('[data-cursor-precise]')
+
       const target = (eventTarget as HTMLElement)?.closest<HTMLElement>('[data-cursor]')
       const mode = target?.dataset.cursor
 
       if (mode) {
-        targetScale = mode === 'view' ? 3.2 : 2
+        // A 2x ring (80px) swallowing a 16px slider thumb hides the very
+        // thing you are aiming at, so precision surfaces get a tighter ring.
+        targetScale = precise ? 0.55 : mode === 'view' ? 3.2 : 2
         label.textContent = mode === 'view' ? 'VIEW' : ''
         ring.dataset.active = 'true'
       } else {
-        targetScale = 1
+        targetScale = precise ? 0.55 : 1
         label.textContent = ''
         delete ring.dataset.active
       }
     }
 
     const tick = () => {
-      // Ring trails the dot; the lag is the whole effect.
-      ringPos.x += (pointer.x - ringPos.x) * 0.16
-      ringPos.y += (pointer.y - ringPos.y) * 0.16
+      // Ring trails the dot; the lag is the whole effect — except over
+      // precision surfaces, where it tracks 1:1.
+      const ease = precise ? 1 : 0.16
+      ringPos.x += (pointer.x - ringPos.x) * ease
+      ringPos.y += (pointer.y - ringPos.y) * ease
       scale += (targetScale - scale) * 0.16
 
       dot.style.transform = `translate3d(${pointer.x}px, ${pointer.y}px, 0) translate(-50%, -50%)`

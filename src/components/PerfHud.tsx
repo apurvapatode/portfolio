@@ -42,68 +42,82 @@ function Row({
 
 export function PerfHud({ stats }: { stats: GpuStats }) {
   const budget = 1000 / 60
+  const fps = Math.round(stats.fps)
+
+  // Smooth is the goal, and 60fps is the bar. Saying so in words means the
+  // reader does not have to know what "16.7ms" implies to read the verdict.
+  const verdict =
+    stats.fps <= 0
+      ? 'Measuring…'
+      : fps >= 55
+        ? 'Running smooth'
+        : fps >= 30
+          ? 'Slight stutter'
+          : 'Struggling — try lowering Quality'
 
   return (
-    <div className="w-full space-y-3 font-mono text-[11px] leading-none">
+    <div className="w-full space-y-4 text-[12px]">
       <div className="space-y-2">
-        <Row
-          label="Frame"
-          value={stats.frameMs > 0 ? stats.frameMs.toFixed(2) : '—'}
-          sub="ms median"
-        />
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-chalk">
+            {stats.fps > 0 ? `${fps} frames per second` : '—'}
+          </span>
+          <span className="font-mono text-[11px] tabular-nums text-mute">
+            {stats.frameMs > 0 ? `${stats.frameMs.toFixed(1)}ms` : ''}
+          </span>
+        </div>
         <BudgetBar value={stats.frameMs} budget={budget} />
+        <p className="text-[11px] text-mute">{verdict}</p>
       </div>
 
-      <Row
-        label="FPS"
-        value={stats.fps > 0 ? Math.round(stats.fps).toString() : '—'}
-      />
-
-      <Row
-        label="p99 frame"
-        value={stats.p99Ms > 0 ? stats.p99Ms.toFixed(2) : '—'}
-        sub="ms"
-      />
-
-      <div className="space-y-2">
-        <Row
-          label="GPU draw"
-          value={stats.gpuMs >= 0 ? stats.gpuMs.toFixed(3) : 'n/a'}
-          sub={stats.gpuMs >= 0 ? 'ms' : undefined}
-        />
-        {stats.gpuMs >= 0 && <BudgetBar value={stats.gpuMs} budget={budget} />}
-      </div>
+      <p className="text-[11px] leading-relaxed text-mute">
+        These numbers are live, measured on your own device. Drag Quality up
+        and down in Controls and watch them move.
+      </p>
 
       <div className="h-px bg-ash/60" />
 
-      <Row
-        label="Backing store"
-        value={stats.width > 0 ? `${stats.width}×${stats.height}` : '—'}
-      />
-      <Row label="DPR cap" value={`${stats.dpr}×`} />
-      <Row
-        label="Fill rate"
-        value={
-          stats.megaFragsPerSec > 0 ? stats.megaFragsPerSec.toFixed(0) : '—'
-        }
-        sub="Mfrag/s"
-      />
+      <div className="space-y-2 font-mono text-[11px]">
+        <Row
+          label="Worst recent frame"
+          value={stats.p99Ms > 0 ? stats.p99Ms.toFixed(1) : '—'}
+          sub="ms"
+        />
+        <Row
+          label="Time spent drawing"
+          value={stats.gpuMs >= 0 ? stats.gpuMs.toFixed(2) : 'not reported'}
+          sub={stats.gpuMs >= 0 ? 'ms' : undefined}
+        />
+        <Row
+          label="Pixels drawn"
+          value={stats.width > 0 ? `${stats.width}×${stats.height}` : '—'}
+        />
+        <Row
+          label="Pixels per second"
+          value={
+            stats.megaFragsPerSec > 0
+              ? `${stats.megaFragsPerSec.toFixed(0)}M`
+              : '—'
+          }
+        />
+      </div>
 
       <div className="h-px bg-ash/60" />
 
       <div className="space-y-1.5">
-        <span className="block text-mute">GPU</span>
-        <span className="block break-words text-[10px] leading-relaxed text-bone">
+        <span className="block text-[11px] text-mute">Your graphics card</span>
+        <span className="block break-words font-mono text-[10px] leading-relaxed text-bone">
           {stats.renderer}
         </span>
       </div>
 
       {!stats.timerQuerySupported && (
-        // Saying *why* the number is missing is the difference between a broken
-        // HUD and a HUD that knows its own limits.
+        // Saying *why* a number is missing is the difference between a broken
+        // readout and one that knows its own limits.
         <p className="text-[10px] leading-relaxed text-mute">
-          EXT_disjoint_timer_query unavailable — Safari and most mobile drivers
-          withhold it. Frame time is CPU-side and still accurate.
+          Your browser won't report exact GPU drawing time — Safari and most
+          phones withhold it to prevent fingerprinting. The frame rate above is
+          measured a different way and is still accurate.
         </p>
       )}
     </div>

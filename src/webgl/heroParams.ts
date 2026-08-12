@@ -23,108 +23,129 @@ export type ParamKey =
 
 export type ParamSpec = {
   key: ParamKey
+  /**
+   * Plain-language name. Most visitors are not graphics programmers, and
+   * "Domain warp" tells them nothing about what the slider will do — whereas
+   * "Swirl" lets them predict the result before they drag it. The technical
+   * term still appears in `term` for the readers who want it.
+   */
   label: string
+  /** The real graphics term, shown small beside the label. */
+  term: string
   value: number
   min: number
   max: number
   step: number
   /** Integer uniforms upload via uniform1i and render without decimals. */
   integer?: boolean
-  /** Shown under the label — what the reader learns by dragging it. */
+  /** One line, in plain words, describing what changes on screen. */
   hint: string
 }
 
 export const HERO_PARAMS: ParamSpec[] = [
   {
     key: 'uWarp',
-    label: 'Domain warp',
+    label: 'Swirl',
+    term: 'domain warp',
     value: 4.0,
     min: 0,
     max: 8,
     step: 0.05,
-    hint: 'How hard the noise field folds through itself. 0 is plain FBM.',
+    hint: 'How much the pattern twists through itself. Zero is smooth clouds.',
   },
   {
     key: 'uScale',
-    label: 'Field scale',
+    label: 'Detail',
+    term: 'field scale',
     value: 1.8,
     min: 0.2,
     max: 6,
     step: 0.05,
-    hint: 'Frequency of the base noise — larger is busier, finer detail.',
+    hint: 'Bigger values pack in finer, busier texture.',
   },
   {
     key: 'uSpeed',
-    label: 'Flow speed',
+    label: 'Speed',
+    term: 'time scale',
     value: 0.35,
     min: 0,
     max: 1.5,
     step: 0.01,
-    hint: 'Time multiplier. 0 freezes the field without stopping the loop.',
+    hint: 'How fast it drifts. Slide to zero to freeze the picture.',
   },
   {
     key: 'uBallRadius',
-    label: 'Pointer mass',
+    label: 'Blob size',
+    term: 'metaball radius',
     value: 0.22,
     min: 0,
     max: 0.8,
     step: 0.01,
-    hint: 'Radius of the metaball that tracks your cursor.',
+    // Deliberately not "follows your mouse": on a phone there is no cursor,
+    // and the blob simply sits centred. Wording that only makes sense on
+    // desktop reads as a bug to half the audience.
+    hint: 'Size of the blob that follows your pointer on desktop.',
   },
   {
     key: 'uSmooth',
-    label: 'Smooth min',
+    label: 'Blob softness',
+    term: 'smooth minimum',
     value: 0.45,
     min: 0.01,
     max: 1.2,
     step: 0.01,
-    hint: 'Blend radius where metaballs merge. Low values crease.',
+    hint: 'How gooey the blobs are when they merge. Low values look sharp.',
   },
   {
     key: 'uRim',
-    label: 'Rim light',
+    label: 'Edge glow',
+    term: 'rim light',
     value: 0.5,
     min: 0,
     max: 2,
     step: 0.01,
-    hint: 'Accent glow on the metaball boundary.',
+    hint: 'Brightness of the coloured outline around each blob.',
   },
   {
     key: 'uAberration',
-    label: 'Aberration',
+    label: 'Colour fringe',
+    term: 'chromatic aberration',
     value: 0.006,
     min: 0,
     max: 0.05,
     step: 0.001,
-    hint: 'Chromatic split. Costs a second field evaluation per fragment.',
+    hint: 'Splits red away from the rest, like a cheap camera lens.',
   },
   {
     key: 'uGrain',
-    label: 'Film grain',
+    label: 'Grain',
+    term: 'film grain',
     value: 0.035,
     min: 0,
     max: 0.2,
     step: 0.001,
-    hint: 'Per-frame noise. Also hides gradient banding.',
+    hint: 'Speckled film texture. Also hides banding in the gradient.',
   },
   {
     key: 'uVignette',
-    label: 'Vignette',
+    label: 'Edge darkening',
+    term: 'vignette',
     value: 0.5,
     min: 0,
     max: 1,
     step: 0.01,
-    hint: 'Corner falloff, keeps display type legible.',
+    hint: 'Darkens the corners so the headline stays readable.',
   },
   {
     key: 'uOctaves',
-    label: 'FBM octaves',
+    label: 'Quality',
+    term: 'FBM octaves',
     value: 5,
     min: 1,
     max: 8,
     step: 1,
     integer: true,
-    hint: 'Noise layers per sample. The main GPU cost dial — watch the HUD.',
+    hint: 'Layers of detail. This is the big one for speed — watch the Speed tab.',
   },
 ]
 
@@ -140,21 +161,21 @@ export const DEFAULT_PARAMS: ParamValues = Object.fromEntries(
  * one click is a demonstration.
  */
 export const PRESETS: { name: string; values: Partial<ParamValues> }[] = [
-  { name: 'Shipped', values: DEFAULT_PARAMS },
+  { name: 'Original', values: DEFAULT_PARAMS },
   {
     name: 'Liquid metal',
     values: { uWarp: 6.4, uScale: 1.2, uSpeed: 0.18, uRim: 1.5, uGrain: 0.01, uSmooth: 0.85 },
   },
   {
-    name: 'Static field',
+    name: 'Frozen',
     values: { uWarp: 0, uScale: 3.4, uSpeed: 0, uRim: 0.2, uAberration: 0, uOctaves: 8 },
   },
   {
-    name: 'Cheap mode',
+    name: 'Low power',
     values: { uOctaves: 1, uWarp: 1.2, uAberration: 0, uGrain: 0.06, uScale: 2.4 },
   },
   {
-    name: 'Overdrive',
+    name: 'Maximum chaos',
     values: { uWarp: 7.5, uScale: 4.2, uSpeed: 1.1, uRim: 1.8, uAberration: 0.03, uOctaves: 8 },
   },
 ]
