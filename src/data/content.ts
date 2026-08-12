@@ -22,6 +22,10 @@ export const SOCIALS = [
   { label: 'GitHub', href: 'https://github.com/apurvapatode' },
   { label: 'LinkedIn', href: 'https://www.linkedin.com/in/apurva-patode/' },
   { label: 'Scholarlify', href: 'https://scholarlify.com' },
+  {
+    label: 'Case studies',
+    href: 'https://www.figma.com/design/XOXzSuF0FoFLMTEdxcz0e9/Proof-of-Work--Case-Studies?node-id=0-1',
+  },
 ]
 
 export type Project = {

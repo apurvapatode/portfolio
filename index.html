@@ -11,7 +11,12 @@
       content="Freelance frontend developer. Website fixes and full rebuilds in Next.js and TypeScript, performance, SEO and accessibility work, and high-end interactive builds."
     />
 
-    <!-- TODO: set this to your real domain once deployed. -->
+    <!-- ⚠️ apurvapatode.com does not currently resolve (no DNS). Until it is
+         registered and pointed at the deployment, this canonical URL sends
+         crawlers to a dead host — which is worse than having no canonical at
+         all. Replace every occurrence of the domain (here, the og:url below,
+         public/sitemap.xml and public/robots.txt) with the real deployed URL,
+         e.g. the Vercel/Cloudflare Pages one, as soon as it exists. -->
     <link rel="canonical" href="https://apurvapatode.com/" />
 
     <meta property="og:type" content="website" />
@@ -44,7 +49,8 @@
         "url": "https://apurvapatode.com/",
         "sameAs": [
           "https://github.com/apurvapatode",
-          "https://www.linkedin.com/in/apurva-patode/"
+          "https://www.linkedin.com/in/apurva-patode/",
+          "https://scholarlify.com"
         ],
         "knowsAbout": [
           "Next.js",
