@@ -102,9 +102,10 @@ export type Service = {
   body: string
   tags: string[]
   /**
-   * Turnaround, not price. Pricing stays out of the public copy on purpose (see
-   * the budget-band note in EnquiryForm) — but "how fast" is the question that
-   * actually blocks an enquiry, and answering it costs no anchor.
+   * Turnaround, not price. Pricing stays out of the public copy on purpose —
+   * the work is worth more than a low anchor implies, and scope varies too
+   * much to quote blind. But "how fast" is the question that actually blocks
+   * an enquiry, and answering it costs no anchor.
    */
   turnaround: string
   /** Prefills the enquiry form's work-type select via the #contact deep link. */

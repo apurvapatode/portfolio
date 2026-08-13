@@ -24,25 +24,6 @@ const WORK_TYPES = [
   'Not sure yet',
 ]
 
-/**
- * Pricing is deliberately absent from the public copy — the work is worth more
- * than a low anchor implies. This field stays because it is private (it only
- * reaches the inbox) and it qualifies the lead before a discovery call.
- *
- * Bands are entry-level by design: at ~2 years billing internationally the
- * market rate is $12—$22/hr. The top is left open ($5,000+) because US small
- * businesses spend $2,000—$8,000 on a freelance-built site, and a hard cap
- * would anchor better-funded clients into a cheaper bracket than they
- * arrived with.
- */
-const BUDGETS = [
-  'Under $300',
-  '$300 — $1,000',
-  '$1,000 — $2,500',
-  '$2,500 — $5,000',
-  '$5,000+',
-  'Prefer to discuss',
-]
 const TIMELINES = ['ASAP', 'Within a month', '1—3 months', 'Just exploring']
 
 export function EnquiryForm() {
@@ -78,7 +59,6 @@ export function EnquiryForm() {
       `Name: ${data.get('name')}`,
       `Company: ${data.get('company') || '—'}`,
       `Needs: ${data.get('workType')}`,
-      `Budget: ${data.get('budget')}`,
       `Timeline: ${data.get('timeline')}`,
       '',
       String(data.get('message') ?? ''),
@@ -156,44 +136,22 @@ export function EnquiryForm() {
         </select>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <label className={label} htmlFor="enq-budget">
-            Rough budget
-          </label>
-          <select
-            id="enq-budget"
-            name="budget"
-            className={selectField}
-            // "Not sure yet" — index-based defaults break silently when the
-            // list changes, so this resolves by value.
-            defaultValue={BUDGETS[BUDGETS.length - 1]}
-          >
-            {BUDGETS.map((option) => (
-              <option key={option} value={option} className="bg-void">
-                {option}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className={label} htmlFor="enq-timeline">
-            Timeline
-          </label>
-          <select
-            id="enq-timeline"
-            name="timeline"
-            className={selectField}
-            defaultValue="Within a month"
-          >
-            {TIMELINES.map((option) => (
-              <option key={option} value={option} className="bg-void">
-                {option}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div>
+        <label className={label} htmlFor="enq-timeline">
+          Timeline
+        </label>
+        <select
+          id="enq-timeline"
+          name="timeline"
+          className={selectField}
+          defaultValue="Within a month"
+        >
+          {TIMELINES.map((option) => (
+            <option key={option} value={option} className="bg-void">
+              {option}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div>

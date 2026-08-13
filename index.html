@@ -11,13 +11,12 @@
       content="Freelance frontend developer. Website fixes and full rebuilds in Next.js and TypeScript, performance, SEO and accessibility work, and high-end interactive builds."
     />
 
-    <!-- ⚠️ apurvapatode.com does not currently resolve (no DNS). Until it is
-         registered and pointed at the deployment, this canonical URL sends
-         crawlers to a dead host — which is worse than having no canonical at
-         all. Replace every occurrence of the domain (here, the og:url below,
-         public/sitemap.xml and public/robots.txt) with the real deployed URL,
-         e.g. the Vercel/Cloudflare Pages one, as soon as it exists. -->
-    <link rel="canonical" href="https://apurvapatode.com/" />
+    <!-- Canonical points at the live Vercel deployment. If apurvapatode.com is
+         ever registered and attached to this project, update the domain in all
+         four places at once: here, og:url below, the two JSON-LD `url` fields,
+         public/sitemap.xml and public/robots.txt. They must always agree — a
+         canonical pointing anywhere unreachable deindexes the live page. -->
+    <link rel="canonical" href="https://apurvapatode.vercel.app/" />
 
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Apurva Patode — Freelance Frontend Developer" />
@@ -25,10 +24,26 @@
       property="og:description"
       content="Website fixes and full rebuilds in Next.js & TypeScript, performance and SEO work, and high-end interactive builds. Available for new clients."
     />
-    <meta property="og:url" content="https://apurvapatode.com/" />
-    <!-- TODO: add a 1200x630 og-image.png to /public for link previews. -->
-    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:url" content="https://apurvapatode.vercel.app/" />
+    <!-- Absolute URL required: LinkedIn/Twitter/Slack scrapers do not resolve
+         relative paths against the page they found them on. -->
+    <meta property="og:image" content="https://apurvapatode.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Apurva Patode — Freelance Frontend Developer" />
+    <meta property="og:site_name" content="Apurva Patode" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Apurva Patode — Freelance Frontend Developer" />
+    <meta
+      name="twitter:description"
+      content="Website fixes and full rebuilds in Next.js & TypeScript, performance and SEO work, and high-end interactive builds. Available for new clients."
+    />
+    <meta name="twitter:image" content="https://apurvapatode.vercel.app/og-image.png" />
+
+    <!-- Explicit crawler permissions. Without max-image-preview:large, Google
+         shows a thumbnail-sized preview; the AI bots are named individually
+         because a few honour per-agent directives but not the wildcard. -->
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
@@ -46,7 +61,8 @@
         "name": "Apurva Patode",
         "jobTitle": "Freelance Frontend Developer",
         "email": "apurvapatode01@gmail.com",
-        "url": "https://apurvapatode.com/",
+        "telephone": "+91-9370209492",
+        "url": "https://apurvapatode.vercel.app/",
         "sameAs": [
           "https://github.com/apurvapatode",
           "https://www.linkedin.com/in/apurva-patode/",
@@ -77,9 +93,23 @@
         "@type": "ProfessionalService",
         "name": "Apurva Patode — Freelance Frontend Development",
         "description": "Freelance frontend development: website rebuilds in Next.js and TypeScript, performance, SEO and accessibility work, and high-end interactive WebGL builds.",
-        "url": "https://apurvapatode.com/",
+        "url": "https://apurvapatode.vercel.app/",
         "email": "apurvapatode01@gmail.com",
+        "telephone": "+91-9370209492",
         "areaServed": "Worldwide",
+        "availableLanguage": ["English", "Hindi", "Marathi"],
+        "knowsAbout": [
+          "Next.js",
+          "TypeScript",
+          "React",
+          "Vite",
+          "WebGL",
+          "GLSL",
+          "Tailwind CSS",
+          "Core Web Vitals",
+          "Web Accessibility",
+          "Search Engine Optimization"
+        ],
         "provider": {
           "@type": "Person",
           "name": "Apurva Patode"
