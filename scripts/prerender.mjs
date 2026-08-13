@@ -105,9 +105,17 @@ if (!out.includes('<div id="root"></div>')) {
   process.exit(1)
 }
 
+// Clipped rather than `display:none`: the block must stay in the accessibility
+// and crawler-visible tree (Google treats display:none text as lower-value, and
+// some scrapers skip it), but must never paint. Without this the browser shows
+// ~9KB of unstyled black-on-white text — starting with the <h1> — for as long
+// as the JS bundle takes to arrive, which on a slow connection is seconds.
+//
+// No JS teardown needed: createRoot() replaces #root's children on mount, so
+// this wrapper is removed wholesale the moment React renders.
 out = out.replace(
   '<div id="root"></div>',
-  `<div id="root">\n${html}\n    </div>`,
+  `<div id="root"><div style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap">\n${html}\n    </div></div>`,
 )
 
 writeFileSync(indexPath, out)
