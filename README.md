@@ -34,12 +34,9 @@ Before going live, check these:
 project keeps the conversation on scope, and a low public anchor undersells the
 work. The FAQ answers "what does it cost?" with how quoting works, not a number.
 
-The one exception is the private `BUDGETS` field in
-`src/components/EnquiryForm.tsx`. It never renders a price to a visitor as a
-claim; it only qualifies the lead in the enquiry email. If you ever add public
-pricing, it has to change in lockstep with `SERVICES`/`FAQS` in
-`src/data/content.ts`, the Hero intro, and the meta + OG descriptions in
-`index.html`.
+If you ever add public pricing, it has to change in lockstep with
+`SERVICES`/`FAQS` in `src/data/content.ts`, the Hero intro, and the meta + OG
+descriptions in `index.html`.
 
 ### Testimonials
 
@@ -93,5 +90,34 @@ src/
 
 ## Deploying
 
-The output is a static `dist/` folder — works on Vercel, Netlify or Cloudflare
-Pages with no configuration. Build command `npm run build`, output `dist`.
+The output is a static `dist/` folder. Build command `npm run build`, output
+`dist`. It will run on Netlify or Cloudflare Pages unchanged; `vercel.json` is
+Vercel-specific and simply ignored elsewhere.
+
+### `vercel.json`
+
+Headers only — no routes, no builds. Two things it does:
+
+- **Caching.** Vite fingerprints everything in `assets/` with a content hash, so
+  those files can be `immutable` for a year: a changed file gets a new URL, so a
+  stale cache is impossible. `index.html` is the opposite — it names the current
+  hashes, so it must revalidate every time or a deploy would go unseen by repeat
+  visitors. Getting this pair wrong in either direction is the classic static
+  hosting bug (permanently stale site, or no caching at all).
+- **Security headers.** HSTS, `nosniff`, a conservative `Referrer-Policy`,
+  `SAMEORIGIN` framing, and a `Permissions-Policy` denying camera/mic/geo, none
+  of which this site uses. A portfolio selling frontend work gets its own headers
+  audited, so they are worth the fifteen lines.
+
+Order matters: Vercel applies every matching `source`, and for a repeated header
+the **first** match wins. The `/assets/(.*)` block therefore sits above the
+catch-all `/(.*)`, and `/index.html` appears after it, so each path lands on the
+`Cache-Control` intended for it.
+
+### Analytics
+
+`@vercel/analytics` and `@vercel/speed-insights` are mounted in `src/App.tsx`
+via their `/react` entry points (not `/next` — this is a Vite SPA). Both must
+also be enabled per-project in the Vercel dashboard; until then the injected
+`/_vercel/*` scripts 404 and collect nothing. They 404 in local `preview` too —
+those endpoints only exist on Vercel's edge, so that is expected, not a bug.
