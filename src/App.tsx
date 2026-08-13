@@ -11,6 +11,8 @@ import { Footer } from './components/Footer'
 import { Cursor } from './components/Cursor'
 import { Preloader } from './components/Preloader'
 import { useSmoothScroll } from './hooks/useSmoothScroll'
+import { Analytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 
 export default function App() {
   useSmoothScroll()
@@ -33,6 +35,9 @@ export default function App() {
       </main>
 
       <Footer />
+
+      <Analytics />
+      <SpeedInsights />
     </>
   )
 }
