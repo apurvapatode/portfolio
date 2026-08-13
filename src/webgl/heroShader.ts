@@ -37,6 +37,7 @@ uniform vec3  uColorC;
 uniform float uWarp;         // domain-warp strength      (default 4.0)
 uniform float uScale;        // field frequency           (default 1.8)
 uniform float uSpeed;        // time multiplier           (default 0.35)
+uniform float uTravel;       // field pan per viewport scrolled (default 0.6)
 uniform float uBallRadius;   // pointer metaball radius   (default 0.22)
 uniform float uSmooth;       // smin blend factor         (default 0.45)
 uniform float uRim;          // rim-light gain            (default 0.5)
@@ -45,6 +46,13 @@ uniform float uGrain;        // film grain amount         (default 0.035)
 uniform float uVignette;     // vignette depth            (default 0.5)
 uniform int   uOctaves;      // FBM octaves               (default 5)
 uniform int   uWarpLayers;   // 1 or 2 warp passes        (default 2)
+
+// -- World-scroll drive -----------------------------------------------------
+// The field is the whole page's ground, and these two are how the page talks
+// to it. Both are written by the scroll camera in ShaderCanvas; a shader
+// compiled without them (an older edit in the lab) simply stands still.
+uniform float uScroll;       // smoothed scroll position, in viewport heights
+uniform float uEnergy;       // 0..1 — scroll velocity, spiky up, slow down
 
 // -- Hash / noise ----------------------------------------------------------
 
@@ -95,18 +103,20 @@ float fbm(vec2 p) {
 // fine curling filaments — lovely on a desktop GPU, and invisible once the
 // image is being upscaled from 40% resolution on a phone. uWarpLayers lets
 // the quality governor drop it, which removes 40% of the shader's total work.
-float warpedField(vec2 p, float t) {
+// The warp strength arrives as an argument rather than being read from uWarp
+// directly, because scroll energy modulates it per frame in main().
+float warpedField(vec2 p, float t, float warpAmt) {
   vec2 q = vec2(fbm(p + vec2(0.0, t * 0.12)), fbm(p + vec2(5.2, 1.3 - t * 0.09)));
 
   if (uWarpLayers < 2) {
-    return fbm(p + uWarp * q);
+    return fbm(p + warpAmt * q);
   }
 
   vec2 r = vec2(
-    fbm(p + uWarp * q + vec2(1.7, 9.2) + t * 0.06),
-    fbm(p + uWarp * q + vec2(8.3, 2.8) - t * 0.05)
+    fbm(p + warpAmt * q + vec2(1.7, 9.2) + t * 0.06),
+    fbm(p + warpAmt * q + vec2(8.3, 2.8) - t * 0.05)
   );
-  return fbm(p + uWarp * r);
+  return fbm(p + warpAmt * r);
 }
 
 // Polynomial smooth minimum — merges the metaballs without a crease.
@@ -129,7 +139,19 @@ void main() {
 
   vec2 pointer = uPointer * vec2(uResolution.x / uResolution.y, 1.0) * 0.5;
 
-  float field = warpedField(uv * uScale, t);
+  // Scroll is a camera move, not a redecoration: the same continuous field,
+  // sampled further along. Scrolling toward the footer pans the fluid upward
+  // past the reader at uTravel field-units per viewport — a fraction of the
+  // content's speed, so it reads as a deep layer, not an attached texture.
+  vec2 world = uv * uScale;
+  world.y -= uScroll * uTravel;
+
+  // Velocity stirs the field: a fling tightens the swirl while it lasts. The
+  // metaballs stay in screen space on purpose — they are the companions that
+  // travel with you while the world streams past.
+  float warpAmt = uWarp * (1.0 + 0.6 * uEnergy);
+
+  float field = warpedField(world, t, warpAmt);
   float balls = metaballs(uv, pointer, t);
 
   // Pointer proximity locally boosts the warp so the field "leans" toward you.
@@ -141,12 +163,14 @@ void main() {
 
   // The accent is deliberately restrained: it reads as a glow inside the
   // metaball rather than flooding the frame, so headline type stays legible.
-  color = mix(color, uColorC, mask * 0.16 * uIntensity);
+  // Scroll energy feeds it — motion is the one moment extra colour is earned,
+  // because the reader is watching the page move, not reading over it.
+  color = mix(color, uColorC, mask * (0.16 + 0.1 * uEnergy) * uIntensity);
 
   // Fresnel-ish rim where the metaball boundary crosses the noise ridges.
   // This thin bright edge is where the accent colour actually earns its place.
   float rim = smoothstep(0.05, 0.0, abs(balls - 0.02));
-  color += uColorC * rim * uRim * uIntensity;
+  color += uColorC * rim * uRim * (1.0 + 0.8 * uEnergy) * uIntensity;
 
   // Chromatic aberration.
   //

@@ -79,7 +79,10 @@
 
   body {
     margin: 0;
-    background: var(--color-void);
+    /* No background on purpose. The shader field sits at z:-10, and negative-z
+       elements paint below in-flow backgrounds — an opaque body would erase
+       it. The ground colour lives on html above, which paints below
+       everything, field included. */
     color: var(--color-chalk);
     font-family: var(--font-body);
     font-synthesis-weight: none;
