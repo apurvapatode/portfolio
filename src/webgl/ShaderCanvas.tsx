@@ -9,34 +9,13 @@ import {
 } from './glUtils'
 import { DEFAULT_PARAMS, HERO_PARAMS, type ParamValues } from './heroParams'
 import { createQualityGovernor } from './adaptiveQuality'
+import { createSceneTrack, type SceneMood } from './worldScene'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useTheme } from '../hooks/useTheme'
 
-// Deep near-black base → desaturated indigo → acid accent. Kept dark on
-// purpose: this sits directly behind display type, so contrast wins over
-// saturation.
-const DARK_COLORS = {
-  a: [0.015, 0.015, 0.025],
-  b: [0.07, 0.05, 0.19],
-  c: [0.55, 0.85, 0.14],
-} as const
-
-// Light mode is not an inversion of the above — the shader multiplies and adds,
-// so simply lightening the ramp blows out to white. These are high-value, low-
-// saturation tints that keep the fluid structure readable while staying pale
-// enough for dark display type to sit on top.
-//
-// Tuned by measuring the rendered frame rather than by eye. Raising the ramp
-// trades structure for brightness on a steep curve: at this palette the frame
-// means ~231/255 (was ~218) while the luminance spread that makes the fluid
-// legible only falls from 16.6 to 15.3, and ~5% of pixels clip to pure white.
-// Pushing `b` a further 0.07 gains 9 more luminance but clips 8% and flattens
-// the field into a pale wash — brighter, and visibly less of a shader.
-const LIGHT_COLORS = {
-  a: [0.985, 0.985, 0.995],
-  b: [0.88, 0.87, 0.97],
-  c: [0.7, 0.86, 0.4],
-} as const
+// Palettes live in worldScene.ts now: the field spans the whole page, and its
+// colours belong to whichever section the camera is passing — including the
+// light-mode tuning notes, which moved with them.
 
 export type FrameSample = (frameMs: number, gpuMs: number) => void
 
@@ -73,9 +52,13 @@ export type ShaderCanvasProps = {
 }
 
 /**
- * Fullscreen shader background. Falls back to a CSS gradient when WebGL2 is
- * unavailable, and renders exactly one frame when the user prefers reduced
- * motion (so the visual still exists, it just holds still).
+ * The site-wide shader field. Fills whatever it is mounted in (ShaderField
+ * pins it to the viewport behind the whole page) and drives itself from
+ * scroll: position pans the fluid, velocity excites it, and the palette
+ * cross-fades between per-section moods as the camera passes their anchors
+ * (worldScene.ts). Falls back to a CSS gradient when WebGL2 is unavailable,
+ * and renders exactly one frame when the user prefers reduced motion (so the
+ * visual still exists, it just holds still).
  */
 export function ShaderCanvas({
   intensity = 1,
@@ -171,6 +154,18 @@ export function ShaderCanvas({
     const renderer = getRendererName(gl)
     const governor = createQualityGovernor()
 
+    // -- World camera --------------------------------------------------------
+    // Scroll state is integrated here, not read raw: the field should glide
+    // with Lenis's inertia, and energy should flare on a fling and settle
+    // slowly enough to be seen settling.
+    const world = { scroll: 0, lastTarget: 0, energy: 0 }
+    const track = createSceneTrack()
+    // Section anchors move with fonts, images and viewport; the body observer
+    // hears about all of them.
+    const sceneObserver = new ResizeObserver(() => track.measure())
+    sceneObserver.observe(document.body)
+    track.measure()
+
     const uniforms = {
       resolution: gl.getUniformLocation(program, 'uResolution'),
       pointer: gl.getUniformLocation(program, 'uPointer'),
@@ -182,6 +177,11 @@ export function ShaderCanvas({
       // Governor-controlled, not user-facing: this one trades away detail the
       // reader cannot see at reduced resolution anyway.
       warpLayers: gl.getUniformLocation(program, 'uWarpLayers'),
+      // World-camera pair. Null in a lab-edited shader that dropped them,
+      // which turns the pan off rather than throwing — same contract as the
+      // params below.
+      scroll: gl.getUniformLocation(program, 'uScroll'),
+      energy: gl.getUniformLocation(program, 'uEnergy'),
     }
 
     // Param uniforms are resolved by name from the schema so that a user-edited
@@ -195,14 +195,13 @@ export function ShaderCanvas({
     gl.useProgram(program)
     gl.bindVertexArray(vao)
 
-    // Uploaded every frame rather than once at init: the palette has to be able
-    // to change when the theme is toggled, and three vec3 uploads are free next
-    // to the fragment work.
-    const uploadColors = () => {
-      const palette = themeRef.current === 'light' ? LIGHT_COLORS : DARK_COLORS
-      gl.uniform3fv(uniforms.colorA, palette.a)
-      gl.uniform3fv(uniforms.colorB, palette.b)
-      gl.uniform3fv(uniforms.colorC, palette.c)
+    // Uploaded every frame rather than once at init: the palette moves with
+    // both the theme toggle and the scroll camera, and three vec3 uploads are
+    // free next to the fragment work.
+    const uploadColors = (mood: SceneMood) => {
+      gl.uniform3fv(uniforms.colorA, mood.a)
+      gl.uniform3fv(uniforms.colorB, mood.b)
+      gl.uniform3fv(uniforms.colorC, mood.c)
     }
 
     const uploadParams = () => {
@@ -247,8 +246,12 @@ export function ShaderCanvas({
     }
     window.addEventListener('pointermove', handlePointerMove, { passive: true })
 
-    // Pause entirely when scrolled offscreen — a shader burning GPU behind
-    // three sections of content is the classic portfolio battery killer.
+    // The field is pinned to the viewport, so this no longer fires on scroll —
+    // it exists for the cases where the canvas genuinely stops being seen
+    // (display:none, an unmounted preview) and as the restart edge when it
+    // returns. The battery question the old offscreen pause answered is now
+    // the governor's job: the field runs for the whole visit by design, and
+    // the tier ladder is what keeps that affordable.
     let visible = true
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -307,24 +310,54 @@ export function ShaderCanvas({
       p.x += (p.tx - p.x) * 0.05 // critically-damped-ish follow
       p.y += (p.ty - p.y) * 0.05
 
+      // World camera. Position eases toward the real scroll so the field
+      // glides with Lenis's inertia rather than snapping under it; the ease is
+      // scaled by stride so frame-skipping tiers don't also get a laggier
+      // camera. Velocity (viewport-heights per second) feeds uEnergy with
+      // asymmetric smoothing — a fling registers in a few frames and takes a
+      // couple of seconds to settle, which is what makes the settling visible.
+      const vh = window.innerHeight || 1
+      const scrollTarget = window.scrollY / vh
+      const dt = Math.max(rawDelta / 1000, 1e-3)
+      const vel = Math.abs(scrollTarget - world.lastTarget) / dt
+      world.lastTarget = scrollTarget
+      const energyTarget = Math.min(1, vel * 0.35)
+      world.energy +=
+        (energyTarget - world.energy) * (energyTarget > world.energy ? 0.25 : 0.04)
+      world.scroll += (scrollTarget - world.scroll) * (1 - Math.pow(0.88, stride))
+
+      // The mood is sampled at the middle of the viewport: the section the
+      // reader is actually looking at, not the one whose top edge they passed.
+      const mood = track.sample(window.scrollY + vh * 0.5, themeRef.current)
+
       const measuring = profilingRef.current
       if (measuring) timer.begin()
 
       gl.uniform2f(uniforms.resolution, canvas.width, canvas.height)
       gl.uniform2f(uniforms.pointer, p.x, p.y)
       gl.uniform1f(uniforms.time, elapsed)
-      gl.uniform1f(uniforms.intensity, intensityRef.current)
-      uploadColors()
+      gl.uniform1f(uniforms.intensity, intensityRef.current * mood.intensity)
+      gl.uniform1f(uniforms.scroll, world.scroll)
+      gl.uniform1f(uniforms.energy, world.energy)
+      uploadColors(mood)
       uploadParams()
       gl.uniform1i(uniforms.warpLayers, governor.tier.warpLayers)
       gl.drawArrays(gl.TRIANGLES, 0, 3)
 
+      // The CPU interval is already computed to drive the governor, so
+      // reporting it every frame is free and the session-long device profile
+      // depends on it. The GPU timer query is the part that costs something,
+      // so it stays gated behind `profiling` — callers get -1 for GPU time
+      // when the HUD is closed, which is the same value they get on browsers
+      // that withhold timer queries entirely, and is handled identically.
       if (measuring) {
         timer.end()
         // `read()` returns the newest *completed* query, which is typically
         // from a frame or two ago — that is inherent to async GPU timing, not
         // a bug. Pairing it with this frame's CPU interval is fine for a HUD.
         onFrameRef.current?.(rawDelta, timer.read())
+      } else {
+        onFrameRef.current?.(rawDelta, -1)
       }
 
       // Terminal tier: this device cannot animate the background without
@@ -349,11 +382,18 @@ export function ShaderCanvas({
       // would reintroduce exactly the stall the halt exists to prevent.
       resizeCanvas(canvas, gl, 2, halted ? governor.tier.resolution : 1)
       reportInfo()
+      // The still frame is honest about where the page is: it bakes in the
+      // scroll position and mood of the moment it was drawn. Under reduced
+      // motion nothing will pan it afterwards — holding still is the point.
+      const vh = window.innerHeight || 1
+      const mood = track.sample(window.scrollY + vh * 0.5, themeRef.current)
       gl.uniform2f(uniforms.resolution, canvas.width, canvas.height)
       gl.uniform2f(uniforms.pointer, 0, 0)
       gl.uniform1f(uniforms.time, 12)
-      gl.uniform1f(uniforms.intensity, intensityRef.current)
-      uploadColors()
+      gl.uniform1f(uniforms.intensity, intensityRef.current * mood.intensity)
+      gl.uniform1f(uniforms.scroll, window.scrollY / vh)
+      gl.uniform1f(uniforms.energy, 0)
+      uploadColors(mood)
       uploadParams()
       gl.uniform1i(uniforms.warpLayers, governor.tier.warpLayers)
       gl.drawArrays(gl.TRIANGLES, 0, 3)
@@ -394,6 +434,7 @@ export function ShaderCanvas({
       cancelAnimationFrame(frame)
       observer.disconnect()
       resizeObserver.disconnect()
+      sceneObserver.disconnect()
       window.removeEventListener('pointermove', handlePointerMove)
       timer.dispose()
       gl.deleteProgram(program)

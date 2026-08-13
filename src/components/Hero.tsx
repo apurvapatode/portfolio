@@ -1,51 +1,28 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { ShaderCanvas } from '../webgl/ShaderCanvas'
-import { HERO_FRAG } from '../webgl/heroShader'
-import { DEFAULT_PARAMS, type ParamKey, type ParamValues } from '../webgl/heroParams'
-import { ShaderLab } from './ShaderLab'
-import { useGpuProfiler } from '../hooks/useGpuProfiler'
+import { useEffect, useRef, useState } from 'react'
 import { useMagnetic } from '../hooks/useMagnetic'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { PROFILE } from '../data/content'
 
-export function Hero() {
+export type HeroProps = {
+  /** Whether the shader lab sheet is open; the invitation hides while it is. */
+  labOpen: boolean
+  /** Opens the lab. The canvas and the sheet both live in ShaderField now —
+      the hero only extends the invitation, because this is where a visitor
+      first meets the field and where the offer makes sense. */
+  onOpenLab: () => void
+}
+
+/**
+ * First viewport of the page. The shader field behind it is not rendered here
+ * any more — it is the site-wide ground (see ShaderField) — so this section is
+ * pure content: the headline, the pitch, and the invitation to play with the
+ * background it happens to be standing on.
+ */
+export function Hero({ labOpen, onOpenLab }: HeroProps) {
   const reducedMotion = useReducedMotion()
   const [mounted, setMounted] = useState(false)
   const titleRef = useRef<HTMLHeadingElement>(null)
   const ctaRef = useMagnetic<HTMLAnchorElement>(0.4, 90)
-
-  // -- Shader lab state ----------------------------------------------------
-  const [labOpen, setLabOpen] = useState(false)
-  const [params, setParams] = useState<ParamValues>(DEFAULT_PARAMS)
-  const [source, setSource] = useState(HERO_FRAG)
-  const [compile, setCompile] = useState({ ok: true, log: '' })
-
-  // Profiling only runs while the lab is open — a timer query per frame is
-  // cheap but not free, and nobody is reading a HUD that is not on screen.
-  const { stats, record, describe } = useGpuProfiler(labOpen)
-
-  const handleParamChange = useCallback((key: ParamKey, value: number) => {
-    setParams((prev) => ({ ...prev, [key]: value }))
-    // Reduced-motion draws a single frame, so it needs a nudge to redraw.
-    window.dispatchEvent(new Event('shaderparams'))
-  }, [])
-
-  const handlePreset = useCallback((values: Partial<ParamValues>) => {
-    setParams((prev) => ({ ...prev, ...values }))
-    window.dispatchEvent(new Event('shaderparams'))
-  }, [])
-
-  const handleReset = useCallback(() => {
-    setParams(DEFAULT_PARAMS)
-    window.dispatchEvent(new Event('shaderparams'))
-  }, [])
-
-  const handleSourceReset = useCallback(() => setSource(HERO_FRAG), [])
-
-  const handleCompile = useCallback(
-    (result: { ok: boolean; log: string }) => setCompile(result),
-    [],
-  )
 
   // Drives the entrance; one paint after mount so the transition actually runs.
   useEffect(() => {
@@ -86,26 +63,8 @@ export function Hero() {
   return (
     <section
       id="top"
-      className="grain relative isolate flex min-h-svh flex-col justify-between overflow-hidden px-6 pb-10 pt-28 md:px-10"
+      className="relative isolate flex min-h-svh flex-col justify-between overflow-hidden px-6 pb-10 pt-28 md:px-10"
     >
-      <ShaderCanvas
-        params={params}
-        fragmentSource={source}
-        onCompile={handleCompile}
-        onFrame={record}
-        onInfo={describe}
-        profiling={labOpen}
-      />
-
-      {/* Legibility scrim. The shader is bright in places and display type sits
-          directly on it, so this guarantees text contrast regardless of where
-          the fluid field happens to be at any given frame. */}
-      {/* Both scrims are the page background at partial alpha, so this works in
-          either theme: it pushes the shader toward the ground colour rather
-          than toward black specifically. */}
-      <div className="absolute inset-0 -z-0 bg-void/55" />
-      <div className="absolute inset-0 -z-0 bg-gradient-to-b from-void/80 via-transparent to-void" />
-
       {/* The invitation matters as much as the feature: "this background is
           live code you can edit" is the whole point, and nobody discovers that
           from an unlabelled icon. Hidden while the panel is open so it never
@@ -120,7 +79,7 @@ export function Hero() {
       {!labOpen && (
         <button
           type="button"
-          onClick={() => setLabOpen(true)}
+          onClick={onOpenLab}
           data-cursor="pointer"
           aria-expanded={labOpen}
           className="group z-20 mb-6 inline-flex items-center gap-2 self-start rounded-full border border-ash bg-void/70 px-4 py-2.5 text-[12px] text-bone backdrop-blur-md transition-colors hover:border-acid hover:text-acid md:absolute md:right-10 md:top-24 md:mb-0 md:self-auto"
@@ -240,21 +199,6 @@ export function Hero() {
           Scroll ↓
         </span>
       </div>
-
-      <ShaderLab
-        open={labOpen}
-        onClose={() => setLabOpen(false)}
-        params={params}
-        onParamChange={handleParamChange}
-        onPreset={handlePreset}
-        onReset={handleReset}
-        source={source}
-        onSourceApply={setSource}
-        onSourceReset={handleSourceReset}
-        compileLog={compile.log}
-        compileOk={compile.ok}
-        stats={stats}
-      />
     </section>
   )
 }

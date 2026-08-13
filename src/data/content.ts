@@ -81,7 +81,7 @@ export const PROJECTS: Project[] = [
       'The site you are on. A hand-written WebGL engine runs the raymarched fluid behind the hero — no three.js — under a layer of smooth scroll, custom cursor and magnetic hover. The point is that it holds 60fps and still passes an audit: reduced-motion users get a static frame, every control is keyboard-reachable, and the markup is semantic underneath the effects. Open the shader editor in the hero corner and change the source live if you want to check.',
     metric: { value: '60fps', label: 'GPU-driven hero' },
     accent: '#ff4d2e',
-    href: '#',
+    href: 'https://github.com/apurvapatode/portfolio',
   },
   {
     id: 'case-studies',

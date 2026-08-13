@@ -88,11 +88,14 @@ function ProjectRow({ project, index }: { project: Project; index: number }) {
   }, [hovered])
 
   const isExternal = project.href.startsWith('http')
-  // Not every external link is a deployed site — the Figma case-study file is
-  // one too — so the hover caption names the destination rather than assuming.
+  // Not every external link is a deployed site — the Figma case-study file and
+  // the GitHub repo are others — so the hover caption names the destination
+  // rather than assuming.
   const externalLabel = project.href.includes('figma.com')
     ? 'View in Figma ↗'
-    : 'Visit live site ↗'
+    : project.href.includes('github.com')
+      ? 'View on GitHub ↗'
+      : 'Visit live site ↗'
 
   return (
     <li

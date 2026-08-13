@@ -13,6 +13,7 @@ export type ParamKey =
   | 'uWarp'
   | 'uScale'
   | 'uSpeed'
+  | 'uTravel'
   | 'uBallRadius'
   | 'uSmooth'
   | 'uRim'
@@ -72,6 +73,19 @@ export const HERO_PARAMS: ParamSpec[] = [
     max: 1.5,
     step: 0.01,
     hint: 'How fast it drifts. Slide to zero to freeze the picture.',
+  },
+  {
+    // The one parameter with no pre-playground literal: it arrived with the
+    // site-wide field, where scroll pans the fluid. Zero disconnects the
+    // field from the page and it becomes wallpaper again.
+    key: 'uTravel',
+    label: 'Travel',
+    term: 'scroll parallax',
+    value: 0.6,
+    min: 0,
+    max: 2,
+    step: 0.05,
+    hint: 'How far the fluid streams past as you scroll. Zero pins it in place.',
   },
   {
     key: 'uBallRadius',
