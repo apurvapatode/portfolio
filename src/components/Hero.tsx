@@ -128,8 +128,11 @@ export function Hero() {
 
       <div className="relative z-10 mx-auto flex w-full max-w-[1600px] flex-1 flex-col justify-center">
         <div className="overflow-hidden">
+          {/* Tracking tightens on small screens: at 0.35em this line wraps to
+              three rows on a phone and reads as a block of noise next to the
+              headline rather than as a label. */}
           <p
-            className="font-mono text-[11px] uppercase tracking-[0.35em] text-acid"
+            className="font-mono text-[11px] uppercase tracking-[0.2em] text-acid sm:tracking-[0.35em]"
             style={reveal(0.1)}
           >
             {PROFILE.role} — {PROFILE.tagline}
@@ -160,7 +163,11 @@ export function Hero() {
           </span>
         </h1>
 
-        <div className="mt-10 grid gap-8 md:grid-cols-[1.2fr_1fr] md:items-end">
+        {/* Splits at lg, not md. At 768px the two-column layout gave the
+            paragraph ~55% of an already narrow viewport — eight lines for forty
+            words, with dead space beside it. One column holds until there is
+            genuinely room for two. */}
+        <div className="mt-10 grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:items-end">
           <div className="overflow-hidden">
             <p
               className="max-w-xl text-balance text-lg leading-relaxed text-bone md:text-xl"
@@ -174,12 +181,17 @@ export function Hero() {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4" style={reveal(0.52)}>
+          {/* Deliberately no wrap: stacked, these two read as a list of equal
+              options rather than a primary and its alternate, and the fold gets
+              pushed down on exactly the screens that can least afford it.
+              Padding tightens instead so the pair stays on one row down to
+              360px. `shrink-0` keeps the labels off two lines inside a pill. */}
+          <div className="flex items-center gap-3 sm:gap-4" style={reveal(0.52)}>
             <a
               ref={ctaRef}
               href="#contact"
               data-cursor="pointer"
-              className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full bg-acid px-8 py-4 font-medium text-void transition-colors hover:bg-chalk"
+              className="group relative inline-flex shrink-0 items-center gap-3 overflow-hidden rounded-full bg-acid px-6 py-3.5 font-medium text-void transition-colors hover:bg-chalk sm:px-8 sm:py-4"
             >
               <span className="relative z-10">Start a project</span>
               <span className="relative z-10 transition-transform duration-500 group-hover:translate-x-1">
@@ -189,7 +201,7 @@ export function Hero() {
             <a
               href="#work"
               data-cursor="pointer"
-              className="inline-flex items-center gap-2 rounded-full border border-ash px-8 py-4 font-medium text-chalk transition-colors hover:border-chalk"
+              className="inline-flex shrink-0 items-center gap-2 rounded-full border border-ash px-6 py-3.5 font-medium text-chalk transition-colors hover:border-chalk sm:px-8 sm:py-4"
             >
               See the work
             </a>
@@ -197,8 +209,12 @@ export function Hero() {
         </div>
       </div>
 
+      {/* `justify-between` only distributes when there is slack to distribute.
+          Below lg these three items fill the row edge to edge and the spacing
+          reads as accidental, so the bar stacks into a deliberate left-aligned
+          column instead and only spreads once it has the width to earn it. */}
       <div
-        className="relative z-10 mx-auto flex w-full max-w-[1600px] flex-wrap items-end justify-between gap-4 border-t border-ash/60 pt-6 font-mono text-[11px] uppercase tracking-[0.2em] text-mute"
+        className="relative z-10 mx-auto flex w-full max-w-[1600px] flex-col items-start gap-2 border-t border-ash/60 pt-6 font-mono text-[11px] uppercase tracking-[0.15em] text-mute sm:tracking-[0.2em] lg:flex-row lg:items-end lg:justify-between lg:gap-4"
         style={reveal(0.6)}
       >
         <span className="flex items-center gap-2">
@@ -211,7 +227,9 @@ export function Hero() {
           {PROFILE.availability}
         </span>
         <span>{PROFILE.location}</span>
-        <span aria-hidden="true" className="hidden md:inline">
+        {/* Matches the bar's own lg breakpoint — at md it would appear while the
+            bar is still stacked, adding a third orphan line. */}
+        <span aria-hidden="true" className="hidden lg:inline">
           Scroll ↓
         </span>
       </div>
