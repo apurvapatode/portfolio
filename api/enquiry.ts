@@ -19,6 +19,18 @@
  *                    once you've verified one in Resend.
  */
 
+/**
+ * Declared locally rather than relying on @types/node's ambient `process`.
+ *
+ * The build box resolved `"types": ["node"]` differently than a local install
+ * did and failed with TS2591 on every `process.env` read — which does not fail
+ * the deploy loudly, it just republishes the previous build, so production goes
+ * on serving stale code while the dashboard reports success. Three lines here
+ * remove that whole class of failure: the only Node global this file touches is
+ * `process.env`, and its shape is not in doubt.
+ */
+declare const process: { env: Record<string, string | undefined> }
+
 const TO = process.env.ENQUIRY_TO || 'apurvapatode01@gmail.com'
 
 // Resend's shared sending domain — deliverable without verifying a domain of
