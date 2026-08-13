@@ -1,21 +1,29 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { PROFILE } from '../data/content'
 
 /**
- * The site is a static build with no backend, so this composes a prefilled
- * mail draft rather than POSTing anywhere. That keeps deployment dependency-free
- * while still capturing the fields that make an enquiry answerable on the first
- * reply — a bare mailto: link gets "hi, are you available?" and costs a round
- * trip to learn anything useful.
+ * Posts to /api/enquiry, a Vercel serverless function that emails the enquiry
+ * through Resend. See api/enquiry.ts for the delivery side and the env vars it
+ * needs.
  *
- * To move this to a real endpoint later (Formspree, Resend, a serverless route),
- * replace the body of `handleSubmit` with a fetch; the markup stays as is.
+ * This replaced a mailto: handoff. The problem with mailto: was not that it was
+ * low-tech — it was that it fails silently: a visitor without a configured mail
+ * client (most people reading on a phone) got nothing, while the form still
+ * claimed the message had been sent. A lead vanished with no signal on either
+ * end. Every outcome below is now something the visitor can actually see.
+ *
+ * If the endpoint is unreachable or misconfigured, the error state falls back
+ * to a prefilled mailto: link rather than a dead end — the enquiry is worth more
+ * than the purity of the mechanism.
  */
 
 /**
  * Two distinct products, so the enquiry captures which one first — a same-week
  * fix and a full build sit at different price points, and a single ladder would
  * either underprice the build or scare off the fix.
+ *
+ * Kept in sync with the same list in api/enquiry.ts, which rejects values it
+ * does not recognise.
  */
 const WORK_TYPES = [
   'A fix or small change',
@@ -26,8 +34,13 @@ const WORK_TYPES = [
 
 const TIMELINES = ['ASAP', 'Within a month', '1—3 months', 'Just exploring']
 
+type Status = 'idle' | 'sending' | 'sent' | 'error'
+
 export function EnquiryForm() {
-  const [sent, setSent] = useState(false)
+  const [status, setStatus] = useState<Status>('idle')
+  const formRef = useRef<HTMLFormElement>(null)
+  /** Retained on failure so the fallback mailto: keeps what was typed. */
+  const draftRef = useRef('')
 
   /**
    * The service cards link to #contact carrying a `data-work` value. Rather than
@@ -51,25 +64,49 @@ export function EnquiryForm() {
     return () => document.removeEventListener('click', onClick)
   }, [])
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const data = new FormData(event.currentTarget)
+    if (status === 'sending') return
 
-    const body = [
-      `Name: ${data.get('name')}`,
-      `Company: ${data.get('company') || '—'}`,
-      `Needs: ${data.get('workType')}`,
-      `Timeline: ${data.get('timeline')}`,
+    const data = new FormData(event.currentTarget)
+    const payload = {
+      name: String(data.get('name') ?? ''),
+      company: String(data.get('company') ?? ''),
+      email: String(data.get('email') ?? ''),
+      workType: String(data.get('workType') ?? ''),
+      timeline: String(data.get('timeline') ?? ''),
+      message: String(data.get('message') ?? ''),
+      website: String(data.get('website') ?? ''),
+    }
+
+    draftRef.current = [
+      `Name: ${payload.name}`,
+      `Company: ${payload.company || '—'}`,
+      `Email: ${payload.email}`,
+      `Needs: ${payload.workType}`,
+      `Timeline: ${payload.timeline}`,
       '',
-      String(data.get('message') ?? ''),
+      payload.message,
     ].join('\n')
 
-    const subject = `Project enquiry — ${data.get('name')}`
-    window.location.href = `mailto:${PROFILE.email}?subject=${encodeURIComponent(
-      subject,
-    )}&body=${encodeURIComponent(body)}`
+    setStatus('sending')
 
-    setSent(true)
+    try {
+      const response = await fetch('/api/enquiry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) throw new Error(`Enquiry endpoint returned ${response.status}`)
+
+      setStatus('sent')
+      formRef.current?.reset()
+      setWorkType(WORK_TYPES[0])
+    } catch (error) {
+      console.error('[enquiry] submit failed:', error)
+      setStatus('error')
+    }
   }
 
   const field =
@@ -90,8 +127,14 @@ export function EnquiryForm() {
     `${field} h-[50px] appearance-none bg-[length:12px] bg-[right_1rem_center] bg-no-repeat pr-11 ` +
     `bg-[url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' stroke='%236b6b76' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")]`
 
+  const sending = status === 'sending'
+
+  const fallbackMailto = `mailto:${PROFILE.email}?subject=${encodeURIComponent(
+    'Project enquiry',
+  )}&body=${encodeURIComponent(draftRef.current)}`
+
   return (
-    <form onSubmit={handleSubmit} className="flex w-full max-w-lg flex-col gap-5">
+    <form ref={formRef} onSubmit={handleSubmit} className="flex w-full max-w-lg flex-col gap-5">
       <div>
         <label className={label} htmlFor="enq-name">
           Name
@@ -100,7 +143,23 @@ export function EnquiryForm() {
           id="enq-name"
           name="name"
           required
+          maxLength={100}
           autoComplete="name"
+          className={`${field} h-[50px]`}
+        />
+      </div>
+
+      <div>
+        <label className={label} htmlFor="enq-email">
+          Email
+        </label>
+        <input
+          id="enq-email"
+          name="email"
+          type="email"
+          required
+          maxLength={100}
+          autoComplete="email"
           className={`${field} h-[50px]`}
         />
       </div>
@@ -112,8 +171,28 @@ export function EnquiryForm() {
         <input
           id="enq-company"
           name="company"
+          maxLength={100}
           autoComplete="organization"
           className={`${field} h-[50px]`}
+        />
+      </div>
+
+      {/*
+        Honeypot. Positioned offscreen rather than `display:none` because some
+        bots skip fields they can tell are hidden — but it must be genuinely
+        absent for assistive tech, or a screen reader user tabs into an unlabelled
+        box and gets their enquiry silently dropped as spam. `aria-hidden` on the
+        input itself (not just the wrapper) plus `tabIndex={-1}` keeps it out of
+        both the accessibility tree and the tab order.
+      */}
+      <div className="pointer-events-none absolute left-[-9999px]" aria-hidden="true">
+        <input
+          id="enq-website"
+          name="website"
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+          aria-hidden="true"
         />
       </div>
 
@@ -163,6 +242,7 @@ export function EnquiryForm() {
           name="message"
           required
           rows={4}
+          maxLength={5000}
           className={`${field} resize-y`}
           placeholder="What's broken, what you need, and any date you're working towards."
         />
@@ -170,16 +250,30 @@ export function EnquiryForm() {
 
       <button
         type="submit"
+        disabled={sending}
         data-cursor="pointer"
-        className="inline-flex w-fit items-center gap-3 rounded-full bg-acid px-8 py-4 font-medium text-void transition-colors hover:bg-chalk"
+        className="inline-flex w-fit items-center gap-3 rounded-full bg-acid px-8 py-4 font-medium text-void transition-colors hover:bg-chalk disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-acid"
       >
-        Send enquiry <span aria-hidden="true">→</span>
+        {sending ? 'Sending…' : 'Send enquiry'}
+        <span aria-hidden="true">{sending ? '···' : '→'}</span>
       </button>
 
+      {/*
+        One live region for every outcome. `min-h` reserves the space so the
+        form does not jump when a message appears.
+      */}
       <p aria-live="polite" className="min-h-[1.25rem] text-sm text-bone">
-        {sent
-          ? 'Your mail client should have opened with the details filled in. If nothing happened, email me directly using the address above.'
-          : ''}
+        {status === 'sent' &&
+          `Thanks — that's landed in my inbox. I reply to every genuine enquiry within two working days.`}
+        {status === 'error' && (
+          <span className="text-plasma">
+            Something went wrong sending that. Please{' '}
+            <a href={fallbackMailto} className="underline hover:text-chalk">
+              email me directly
+            </a>{' '}
+            — your message is already filled in.
+          </span>
+        )}
       </p>
     </form>
   )

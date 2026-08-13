@@ -48,10 +48,37 @@ and result.
 
 ### Enquiry form
 
-`EnquiryForm.tsx` has no backend: it composes a prefilled `mailto:` draft from
-the form fields. To move it to a real endpoint (Formspree, Resend, a serverless
-route), replace the body of `handleSubmit` with a `fetch` — the markup stays as
-is.
+`EnquiryForm.tsx` POSTs to `/api/enquiry` — a Vercel serverless function
+(`api/enquiry.ts`) that emails the enquiry through Resend.
+
+**This will not send until one environment variable is set.** In Vercel →
+Project → Settings → Environment Variables:
+
+| Variable | Required | Notes |
+|---|---|---|
+| `RESEND_API_KEY` | **yes** | From [resend.com/api-keys](https://resend.com/api-keys). Free tier covers 3,000 emails/month. |
+| `ENQUIRY_TO` | no | Destination inbox. Defaults to the address in `api/enquiry.ts`. |
+| `ENQUIRY_FROM` | no | Defaults to Resend's shared `onboarding@resend.dev`, which delivers with no DNS setup. Point it at your own domain once verified in Resend. |
+
+Without the key the endpoint returns 503 and the form tells the visitor to email
+directly — it degrades, it does not lie about having sent.
+
+Behaviour worth knowing:
+
+- **Failures are visible.** The old version composed a `mailto:` and always
+  reported success, so a visitor with no mail client configured (most people on
+  a phone) lost their enquiry silently. Now a failed send shows an error and a
+  fallback `mailto:` prefilled with everything they typed.
+- **Reply-To** is set to the visitor's address, so replying goes to them.
+- **Honeypot**: a hidden `website` field. Submissions that fill it get a 200 and
+  are dropped — telling a bot which check it failed only helps it retry.
+- The work-type and timeline lists are duplicated in `api/enquiry.ts`; values it
+  does not recognise are recorded as "Not specified" rather than echoed into the
+  email. Keep the two lists in step.
+
+To swap Resend for something else, replace the `fetch` to `api.resend.com` in
+`api/enquiry.ts`. The form contract (`POST` JSON, `{ ok: true }` or a non-2xx)
+stays the same.
 
 ## Architecture
 
@@ -64,6 +91,9 @@ src/
 ├─ hooks/          useSmoothScroll, useMagnetic, useInView, useReducedMotion
 ├─ components/     One file per section
 └─ data/content.ts All copy
+
+api/
+└─ enquiry.ts     Serverless function: validates + emails the contact form
 ```
 
 ### Performance notes
