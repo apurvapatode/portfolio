@@ -106,17 +106,24 @@ export function Hero() {
       <div className="absolute inset-0 -z-0 bg-void/55" />
       <div className="absolute inset-0 -z-0 bg-gradient-to-b from-void/80 via-transparent to-void" />
 
-      {/* Top-right, under the nav. The invitation matters as much as the
-          feature: "this background is live code you can edit" is the whole
-          point, and nobody discovers that from an unlabelled icon. Hidden
-          while the panel is open so it never sits under the sheet on mobile. */}
+      {/* The invitation matters as much as the feature: "this background is
+          live code you can edit" is the whole point, and nobody discovers that
+          from an unlabelled icon. Hidden while the panel is open so it never
+          sits under the sheet on mobile.
+
+          Below md it sits in normal flow above the headline. Pinned top-right
+          it shares a band with the eyebrow line, and since the eyebrow is in
+          centred flow it rides up on short viewports and collides — the two
+          overlap on a 390x664 phone and worse on a 320px one, where the label
+          wraps to three rows. From md up there is width to spare, so it goes
+          back to the corner. */}
       {!labOpen && (
         <button
           type="button"
           onClick={() => setLabOpen(true)}
           data-cursor="pointer"
           aria-expanded={labOpen}
-          className="group absolute right-6 top-20 z-20 inline-flex items-center gap-2 rounded-full border border-ash bg-void/70 px-4 py-2.5 text-[12px] text-bone backdrop-blur-md transition-colors hover:border-acid hover:text-acid md:right-10 md:top-24"
+          className="group z-20 mb-6 inline-flex items-center gap-2 self-start rounded-full border border-ash bg-void/70 px-4 py-2.5 text-[12px] text-bone backdrop-blur-md transition-colors hover:border-acid hover:text-acid md:absolute md:right-10 md:top-24 md:mb-0 md:self-auto"
         >
           <span
             aria-hidden="true"
