@@ -45,3 +45,8 @@ User-agent: DuckDuckBot
 Allow: /
 
 Sitemap: https://apurvapatode01.vercel.app/sitemap.xml
+
+# Plain-text summary of the whole site for assistants that look for it.
+# Generated at build time by scripts/prerender.mjs from src/data/content.ts,
+# so it cannot drift from the page — do not create a static copy in public/.
+# LLM-friendly: https://apurvapatode01.vercel.app/llms.txt

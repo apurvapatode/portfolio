@@ -1,6 +1,6 @@
 /**
- * Injects a first-paint hero plus a crawler-readable snapshot into
- * dist/index.html.
+ * Injects a first-paint hero, a crawler-readable snapshot and generated
+ * FAQPage JSON-LD into dist/index.html, and writes dist/llms.txt.
  *
  * Why not react-snap / vite-plugin-prerender / SSR: almost every component
  * here touches window, document, localStorage or WebGL at render scope (see
@@ -39,6 +39,13 @@ import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+
+/**
+ * Must agree with the canonical and og:url in index.html and the URLs in
+ * public/robots.txt and public/sitemap.xml. See the canonical comment in
+ * index.html — a canonical pointing at an unreachable host deindexes the page.
+ */
+const SITE_URL = 'https://apurvapatode01.vercel.app'
 
 const esc = (s) =>
   String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -178,6 +185,35 @@ const html = `
         </ul>
       </nav>`
 
+/**
+ * FAQPage markup, generated from the same FAQS the crawler block above renders.
+ *
+ * Generated rather than hand-written in index.html for a specific reason:
+ * Google requires FAQ markup to match FAQ content visible on the page, and a
+ * hand-maintained copy drifts the moment someone edits an answer in
+ * content.ts. Drift here is not a silent no-op — mismatched markup is a
+ * structured-data manual action. One source, no drift.
+ *
+ * JSON.stringify handles escaping, so the answers pass through raw; esc() is
+ * for the HTML blocks above and would double-escape entities inside a script.
+ * The closing `</script>` sequence is the one thing that could break out of the
+ * tag, and it cannot appear here — but guard it anyway rather than rely on the
+ * copy never containing it.
+ */
+const faqSchema = JSON.stringify(
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: FAQS.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
+    })),
+  },
+  null,
+  2,
+).replace(/<\//g, '<\\/')
+
 const indexPath = resolve(root, 'dist/index.html')
 let out = readFileSync(indexPath, 'utf8')
 
@@ -197,12 +233,79 @@ if (!out.includes('<div id="root"></div>')) {
 //
 // No JS teardown needed for either block: createRoot() replaces #root's
 // children on mount, so both are removed wholesale the moment React renders.
+// Injected before </head> so it sits with the hand-written Person and
+// ProfessionalService blocks. Bailing loudly rather than silently shipping a
+// page whose FAQ answers are invisible to search.
+if (!out.includes('</head>')) {
+  console.error('[prerender] no </head> found — did the build change?')
+  process.exit(1)
+}
+out = out.replace(
+  '</head>',
+  `  <script type="application/ld+json">\n${faqSchema}\n    </script>\n  </head>`,
+)
+
 out = out.replace(
   '<div id="root"></div>',
   `<div id="root">${heroShell}\n      <div style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap">\n${html}\n      </div>\n    </div>`,
 )
 
 writeFileSync(indexPath, out)
+
+/**
+ * dist/llms.txt — a plain-text brief for assistants that accept one.
+ *
+ * The convention normally expects a short index of links to detailed pages.
+ * This site is a single route with no sub-pages to point at, so linking out
+ * would produce a file that costs a fetch and answers nothing. The full
+ * content goes inline instead: one fetch, everything an assistant needs to
+ * answer "who is this, what do they do, how do I reach them".
+ *
+ * Written here rather than kept in public/ for the same reason as the FAQ
+ * schema — a static copy in public/ would drift from content.ts silently.
+ */
+const llms = `# ${PROFILE.name}
+
+> ${PROFILE.role}. ${PROFILE.tagline}. ${PROFILE.location}. ${PROFILE.availability}.
+
+Contact: ${PROFILE.email} · ${PROFILE.phone}
+Site: ${SITE_URL}
+
+## Services
+
+${SERVICES.map(
+  (s) => `### ${s.title}\n${s.body}\nTurnaround: ${s.turnaround}. Tags: ${s.tags.join(', ')}.`,
+).join('\n\n')}
+
+## Selected work
+
+${PROJECTS.map(
+  (p) =>
+    `### ${p.title} — ${p.client} (${p.year})\n${p.summary}\nResult: ${p.metric.value} ${p.metric.label}. Built with ${p.discipline.join(', ')}.`,
+).join('\n\n')}
+
+## How I work
+
+${PROCESS.map((p) => `### ${p.phase}\n${p.body}`).join('\n\n')}
+
+## FAQ
+
+${FAQS.map((f) => `### ${f.q}\n${f.a}`).join('\n\n')}
+
+## Capabilities
+
+${CAPABILITIES.join(', ')}.
+
+${STATS.map((s) => `- ${s.value} — ${s.label}`).join('\n')}
+
+## Elsewhere
+
+${SOCIALS.map((s) => `- [${s.label}](${s.href})`).join('\n')}
+`
+
+writeFileSync(resolve(root, 'dist/llms.txt'), llms)
+
 console.log(
-  `[prerender] injected ${heroShell.length} bytes of painting hero + ${html.length} bytes of crawler content into dist/index.html`,
+  `[prerender] injected ${heroShell.length} bytes of painting hero + ${html.length} bytes of crawler content + ${faqSchema.length} bytes of FAQ schema into dist/index.html`,
 )
+console.log(`[prerender] wrote dist/llms.txt (${llms.length} bytes)`)
