@@ -36,8 +36,25 @@ const TIMELINES = ['ASAP', 'Within a month', '1—3 months', 'Just exploring']
 
 type Status = 'idle' | 'sending' | 'sent' | 'error'
 
+/**
+ * How long to wait before giving up on the endpoint. A serverless cold start
+ * plus the Resend call is comfortably under this; past it, the visitor is
+ * staring at "Sending…" with no way to tell that it has stalled. The abort
+ * lands them on the error state, which carries the mailto: fallback.
+ */
+const SUBMIT_TIMEOUT_MS = 15000
+
 export function EnquiryForm() {
   const [status, setStatus] = useState<Status>('idle')
+  /**
+   * The endpoint distinguishes a rejected submission (400 — a field the visitor
+   * can fix) from a delivery failure (502/503 — nothing they can do but email
+   * instead). Showing one generic line for both sent people to the mailto:
+   * fallback over a typo, so the server's own message is surfaced when it has
+   * one, and only the unfixable cases offer the fallback link.
+   */
+  const [errorMessage, setErrorMessage] = useState('')
+  const [errorRecoverable, setErrorRecoverable] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
   /** Retained on failure so the fallback mailto: keeps what was typed. */
   const draftRef = useRef('')
@@ -91,21 +108,53 @@ export function EnquiryForm() {
 
     setStatus('sending')
 
+    // Without this the request can hang indefinitely on a dead connection and
+    // the button sits disabled on "Sending…" forever.
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), SUBMIT_TIMEOUT_MS)
+
     try {
       const response = await fetch('/api/enquiry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       })
 
-      if (!response.ok) throw new Error(`Enquiry endpoint returned ${response.status}`)
+      if (!response.ok) {
+        // A 4xx is the visitor's to fix; anything else is ours, and the
+        // mailto: fallback is the only route left for them.
+        const recoverable = response.status >= 400 && response.status < 500
+        const served = await response
+          .json()
+          .then((body: unknown) =>
+            body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string'
+              ? (body as { error: string }).error
+              : '',
+          )
+          .catch(() => '')
+
+        setErrorMessage(served || 'Something went wrong sending that.')
+        setErrorRecoverable(recoverable)
+        setStatus('error')
+        return
+      }
 
       setStatus('sent')
+      setErrorMessage('')
       formRef.current?.reset()
       setWorkType(WORK_TYPES[0])
     } catch (error) {
       console.error('[enquiry] submit failed:', error)
+      setErrorMessage(
+        (error as Error)?.name === 'AbortError'
+          ? 'That took too long to send.'
+          : 'Something went wrong sending that.',
+      )
+      setErrorRecoverable(false)
       setStatus('error')
+    } finally {
+      clearTimeout(timeout)
     }
   }
 
@@ -134,7 +183,16 @@ export function EnquiryForm() {
   )}&body=${encodeURIComponent(draftRef.current)}`
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="flex w-full max-w-lg flex-col gap-5">
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      onInput={() => {
+        // A "sent" or error line left standing while the visitor types their
+        // next message describes a submission no longer on screen.
+        if (status === 'sent' || status === 'error') setStatus('idle')
+      }}
+      className="relative flex w-full max-w-lg flex-col gap-5"
+    >
       <div>
         <label className={label} htmlFor="enq-name">
           Name
@@ -267,11 +325,18 @@ export function EnquiryForm() {
           `Thanks — that's landed in my inbox. I reply to every genuine enquiry within two working days.`}
         {status === 'error' && (
           <span className="text-plasma">
-            Something went wrong sending that. Please{' '}
-            <a href={fallbackMailto} className="underline hover:text-chalk">
-              email me directly
-            </a>{' '}
-            — your message is already filled in.
+            {errorMessage}{' '}
+            {errorRecoverable ? (
+              'Please adjust that and try again.'
+            ) : (
+              <>
+                Please{' '}
+                <a href={fallbackMailto} data-cursor="pointer" className="underline hover:text-chalk">
+                  email me directly
+                </a>{' '}
+                — your message is already filled in.
+              </>
+            )}
           </span>
         )}
       </p>
