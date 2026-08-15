@@ -44,4 +44,4 @@ Allow: /
 User-agent: DuckDuckBot
 Allow: /
 
-Sitemap: https://apurvapatode.vercel.app/sitemap.xml
+Sitemap: https://apurvapatode01.vercel.app/sitemap.xml

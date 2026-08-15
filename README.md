@@ -23,7 +23,7 @@ Before going live, check these:
 | Contact email / phone | `src/data/content.ts` → `PROFILE` |
 | Social links | `src/data/content.ts` → `SOCIALS` |
 | Project case-study URLs | `src/data/content.ts` → `PROJECTS[].href` (several are `'#'`) |
-| Canonical URL + OG URL | `index.html` (currently `apurvapatode.com`) |
+| Canonical URL + OG URL | `index.html` (currently `apurvapatode01.vercel.app`) |
 | Domain in sitemap/robots | `public/sitemap.xml`, `public/robots.txt` |
 | Social preview image | add `public/og-image.png` at 1200×630 |
 | **Client testimonials** | `src/data/content.ts` → `TESTIMONIALS` (empty — section is hidden until filled) |
