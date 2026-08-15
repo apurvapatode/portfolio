@@ -117,6 +117,16 @@ export function Contact() {
                 >
                   <span className="h-px w-6 bg-ash transition-[width,background-color] duration-300 group-hover:w-10 group-hover:bg-acid" />
                   {social.label}
+                  {/*
+                    Every link here leaves the site in a new tab. Without a cue
+                    that is an unannounced context switch — the arrow carries it
+                    visually, and the sr-only text carries it for screen readers,
+                    which otherwise read only the bare label.
+                  */}
+                  <span aria-hidden="true" className="text-ash transition-colors group-hover:text-acid">
+                    ↗
+                  </span>
+                  <span className="sr-only">(opens in a new tab)</span>
                 </a>
               </li>
             ))}

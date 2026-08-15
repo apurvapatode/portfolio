@@ -31,6 +31,7 @@ export const SOCIALS = [
   { label: 'GitHub', href: 'https://github.com/apurvapatode' },
   { label: 'LinkedIn', href: 'https://www.linkedin.com/in/apurva-patode/' },
   { label: 'Scholarlify', href: 'https://scholarlify.com' },
+  { label: 'Maponomy', href: 'https://planner.maponomy.com/' },
   { label: 'Case studies', href: CASE_STUDIES_URL },
 ]
 
@@ -51,7 +52,7 @@ export const PROJECTS: Project[] = [
     id: 'scholarlify',
     title: 'Scholarlify',
     client: 'EdTech Startup · Founding Team',
-    year: '2024 — Present',
+    year: 'April 2024 — Present',
     discipline: ['React', 'Vite', 'JavaScript', 'FastAPI', 'SEO'],
     summary:
       'A scholarship platform serving 5,000+ Indian students, and I am the frontend team — the public React + Vite site plus three separate dashboards for admins, students and partners, covering onboarding, document verification and application tracking. Around 70% of every frontend repo is mine, written to be handed over: I also review the interns\' PRs against it. When the backend blocked me I built the FastAPI endpoints myself rather than wait.',
@@ -63,7 +64,7 @@ export const PROJECTS: Project[] = [
     id: 'maponomy',
     title: 'Maponomy',
     client: 'Potters Tech · Frontend Developer',
-    year: '2025 — Present',
+    year: 'April 2026 — Present',
     discipline: ['Next.js', 'TypeScript', 'Turborepo', 'Analytics UI'],
     summary:
       'A distributed team of ten building a delivery-planning platform as a Next.js + TypeScript monorepo, and I was handed the internal admin portal to lead — client management, roles, routing, system-ops and a combined stats dashboard — plus the analytics surface customers actually see. Pages that fired a request per widget now make one combo call, behind route-level skeletons, so the portal stopped feeling slow under real data rather than only in a demo.',
