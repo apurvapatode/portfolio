@@ -35,6 +35,7 @@
  * change it here too; a mismatch shows up as a visible snap at mount.
  */
 import { readFileSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -253,6 +254,41 @@ out = out.replace(
 writeFileSync(indexPath, out)
 
 /**
+ * The CSP in vercel.json allows the inline theme script by hash. A hash is
+ * exact: editing that script by one byte makes the browser refuse to run it,
+ * and the failure is invisible in the worst way — no build error, no console
+ * error most people will see, just the dark-mode flash the script exists to
+ * prevent, back again on a light-mode visitor's first paint.
+ *
+ * So the build recomputes the hash from the shipped HTML and fails if it has
+ * drifted from the header. Editing the theme script is fine; editing it and
+ * forgetting the header is what this catches.
+ */
+const vercelConfig = readFileSync(resolve(root, 'vercel.json'), 'utf8')
+const inlineScripts = [...out.matchAll(/<script>([\s\S]*?)<\/script>/g)]
+
+if (inlineScripts.length !== 1) {
+  console.error(
+    `[prerender] expected exactly 1 inline <script> in dist/index.html, found ${inlineScripts.length}.`,
+    '\n  The CSP allow-lists inline scripts by hash, one hash per script.',
+    '\n  Add the new script’s sha256 to script-src in vercel.json.',
+  )
+  process.exit(1)
+}
+
+const themeHash =
+  'sha256-' + createHash('sha256').update(inlineScripts[0][1], 'utf8').digest('base64')
+
+if (!vercelConfig.includes(themeHash)) {
+  console.error(
+    '[prerender] the inline theme script does not match any hash in the CSP.',
+    `\n  Expected script-src in vercel.json to contain: '${themeHash}'`,
+    '\n  Update it, or the browser will block the script and the theme flash returns.',
+  )
+  process.exit(1)
+}
+
+/**
  * dist/llms.txt — a plain-text brief for assistants that accept one.
  *
  * The convention normally expects a short index of links to detailed pages.
@@ -305,7 +341,33 @@ ${SOCIALS.map((s) => `- [${s.label}](${s.href})`).join('\n')}
 
 writeFileSync(resolve(root, 'dist/llms.txt'), llms)
 
+/**
+ * dist/sitemap.xml — generated so `lastmod` cannot go stale.
+ *
+ * The hand-maintained copy in public/ carried a hardcoded date that nobody was
+ * ever going to remember to bump, and a `lastmod` that disagrees with the page
+ * is worse than none: crawlers that trust it deprioritise recrawling content
+ * that has in fact changed. Stamping it at build time makes it true by
+ * construction — every deploy says exactly when it deployed.
+ *
+ * Written after Vite has copied public/ into dist/, so this overwrites the
+ * static copy rather than racing it.
+ */
+const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${SITE_URL}/</loc>
+    <lastmod>${new Date().toISOString().slice(0, 10)}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
+`
+
+writeFileSync(resolve(root, 'dist/sitemap.xml'), sitemap)
+
 console.log(
   `[prerender] injected ${heroShell.length} bytes of painting hero + ${html.length} bytes of crawler content + ${faqSchema.length} bytes of FAQ schema into dist/index.html`,
 )
 console.log(`[prerender] wrote dist/llms.txt (${llms.length} bytes)`)
+console.log(`[prerender] wrote dist/sitemap.xml (lastmod ${new Date().toISOString().slice(0, 10)})`)

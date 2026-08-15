@@ -56,6 +56,58 @@ const LIMITS = {
   message: 5000,
 }
 
+/**
+ * Rate limit: per-IP, in the instance's own memory.
+ *
+ * What this is honestly worth: it stops the realistic attack on a contact form
+ * — one script POSTing in a loop until the Resend quota (3,000/month on the
+ * free tier) is gone and the inbox is unusable. It does not stop a distributed
+ * flood, and because Vercel runs several instances that may each hold their own
+ * counter, the effective ceiling is this limit times the number of warm
+ * instances. Both are acceptable: the alternative is a KV store and a second
+ * set of credentials to hold a counter for a form that legitimately sees a
+ * handful of submissions a week.
+ *
+ * A cold start clears the map, which is a real bypass for a determined
+ * attacker. It is also what keeps this from leaking memory across a long-lived
+ * instance, alongside the sweep in `rateLimit`.
+ */
+const RATE_LIMIT = { max: 5, windowMs: 10 * 60 * 1000 }
+
+const hits = new Map<string, number[]>()
+
+/**
+ * Vercel sets x-forwarded-for; the client's address is the first entry, since
+ * anything after it was appended by proxies in front of us. A request with no
+ * forwarded header at all shares the 'unknown' bucket rather than bypassing the
+ * limit — failing open per-request would make the header the bypass.
+ */
+const clientIp = (request: Request) =>
+  request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+  request.headers.get('x-real-ip')?.trim() ||
+  'unknown'
+
+function rateLimit(ip: string): boolean {
+  const now = Date.now()
+  const cutoff = now - RATE_LIMIT.windowMs
+
+  // Sweep every caller whose window has fully expired, not just this one —
+  // otherwise the map grows by one entry per distinct IP for the life of the
+  // instance, which is the leak a bot would trip first.
+  for (const [key, times] of hits) {
+    const live = times.filter((t) => t > cutoff)
+    if (live.length) hits.set(key, live)
+    else hits.delete(key)
+  }
+
+  const recent = hits.get(ip) ?? []
+  if (recent.length >= RATE_LIMIT.max) return false
+
+  recent.push(now)
+  hits.set(ip, recent)
+  return true
+}
+
 type Payload = {
   name: string
   company: string
@@ -112,6 +164,17 @@ export async function POST(request: Request): Promise<Response> {
 
   if (!name || !message) {
     return json({ error: 'Name and message are both required.' }, 400)
+  }
+
+  // After validation so a burst of malformed junk cannot burn a real visitor's
+  // allowance, and after the honeypot so a caught bot learns nothing new. 429
+  // is recoverable in the form's sense (4xx), so the visitor is told to wait
+  // rather than being pushed to the mailto: fallback — this is temporary.
+  if (!rateLimit(clientIp(request))) {
+    return json(
+      { error: 'That is a lot of enquiries in a short time. Please try again shortly.' },
+      429,
+    )
   }
 
   // Unrecognised values fall back to a label rather than being echoed into the

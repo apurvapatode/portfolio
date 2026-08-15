@@ -55,6 +55,8 @@ export function EnquiryForm() {
    */
   const [errorMessage, setErrorMessage] = useState('')
   const [errorRecoverable, setErrorRecoverable] = useState(false)
+  /** 429 only: the message stands alone, with no follow-up advice appended. */
+  const [errorSelfExplanatory, setErrorSelfExplanatory] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
   /** Retained on failure so the fallback mailto: keeps what was typed. */
   const draftRef = useRef('')
@@ -124,6 +126,12 @@ export function EnquiryForm() {
       if (!response.ok) {
         // A 4xx is the visitor's to fix; anything else is ours, and the
         // mailto: fallback is the only route left for them.
+        //
+        // 429 is the exception on both counts: there is no field to correct,
+        // so "adjust that and try again" is wrong, and the block is temporary,
+        // so pushing them to email would be an overreaction. The server's own
+        // message ("try again shortly") is the whole instruction.
+        const rateLimited = response.status === 429
         const recoverable = response.status >= 400 && response.status < 500
         const served = await response
           .json()
@@ -136,6 +144,7 @@ export function EnquiryForm() {
 
         setErrorMessage(served || 'Something went wrong sending that.')
         setErrorRecoverable(recoverable)
+        setErrorSelfExplanatory(rateLimited)
         setStatus('error')
         return
       }
@@ -152,6 +161,7 @@ export function EnquiryForm() {
           : 'Something went wrong sending that.',
       )
       setErrorRecoverable(false)
+      setErrorSelfExplanatory(false)
       setStatus('error')
     } finally {
       clearTimeout(timeout)
@@ -326,7 +336,7 @@ export function EnquiryForm() {
         {status === 'error' && (
           <span className="text-plasma">
             {errorMessage}{' '}
-            {errorRecoverable ? (
+            {errorSelfExplanatory ? null : errorRecoverable ? (
               'Please adjust that and try again.'
             ) : (
               <>

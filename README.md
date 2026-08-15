@@ -24,7 +24,7 @@ Before going live, check these:
 | Social links | `src/data/content.ts` → `SOCIALS` |
 | Project case-study URLs | `src/data/content.ts` → `PROJECTS[].href` (several are `'#'`) |
 | Canonical URL + OG URL | `index.html` (currently `apurvapatode01.vercel.app`) |
-| Domain in sitemap/robots | `public/sitemap.xml`, `public/robots.txt` |
+| Domain in sitemap/robots | `scripts/prerender.mjs` → `SITE_URL`, `public/robots.txt` |
 | Social preview image | add `public/og-image.png` at 1200×630 |
 | **Client testimonials** | `src/data/content.ts` → `TESTIMONIALS` (empty — section is hidden until filled) |
 
@@ -72,6 +72,15 @@ Behaviour worth knowing:
 - **Reply-To** is set to the visitor's address, so replying goes to them.
 - **Honeypot**: a hidden `website` field. Submissions that fill it get a 200 and
   are dropped — telling a bot which check it failed only helps it retry.
+- **Rate limit**: 5 submissions per IP per 10 minutes, held in the function
+  instance's memory. This stops the realistic attack — one script looping until
+  the Resend quota is gone — but note what it does not do: Vercel runs several
+  instances that each keep their own counter, so the real ceiling is the limit
+  times the number of warm instances, and a cold start clears it. Moving to a
+  shared KV store would fix both, at the cost of another dependency and another
+  credential for a form that sees a handful of real submissions a week. Over the
+  limit returns 429, which the form renders as "try again shortly" without the
+  mailto: fallback, because the block is temporary.
 - The work-type and timeline lists are duplicated in `api/enquiry.ts`; values it
   does not recognise are recorded as "Not specified" rather than echoed into the
   email. Keep the two lists in step.
@@ -138,6 +147,22 @@ Headers only — no routes, no builds. Two things it does:
   `SAMEORIGIN` framing, and a `Permissions-Policy` denying camera/mic/geo, none
   of which this site uses. A portfolio selling frontend work gets its own headers
   audited, so they are worth the fifteen lines.
+- **CSP.** `default-src 'self'` with the narrowest set of exceptions the page
+  actually needs: Google Fonts for `style-src`/`font-src`, `data:` images (the
+  select chevron is an inline SVG), and one `'sha256-…'` for the inline theme
+  script. `script-src` carries no `'unsafe-inline'`, which is the whole point —
+  `style-src` still needs it for two inline `style` attributes.
+
+  **The script hash is exact, and drift is silent** — edit the theme script in
+  `index.html` by one byte and the browser refuses to run it, giving a
+  light-mode visitor back the dark flash it exists to prevent, with no console
+  error most people would notice. So `scripts/prerender.mjs` recomputes the hash
+  from the built HTML on every build and fails the build if it no longer matches
+  `vercel.json`. If it fails, paste the hash it prints into `script-src`.
+
+  Vercel's analytics scripts need no exception: in production both load from
+  `/_vercel/*` on this origin, and `va.vercel-scripts.com` is only used in debug
+  builds.
 
 Order matters: Vercel applies every matching `source`, and for a repeated header
 the **first** match wins. The `/assets/(.*)` block therefore sits above the

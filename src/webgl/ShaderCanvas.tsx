@@ -236,15 +236,37 @@ export function ShaderCanvas({
       })
     }
 
-    const handlePointerMove = (event: PointerEvent) => {
+    // Shared by both input paths below: viewport coords -> clip space.
+    const aimPointer = (clientX: number, clientY: number) => {
       // Once halted the pointer no longer drives anything, so skip the work
       // entirely rather than updating a uniform nothing will ever read.
       if (halted) return
       const p = pointerRef.current
-      p.tx = (event.clientX / window.innerWidth) * 2 - 1
-      p.ty = -((event.clientY / window.innerHeight) * 2 - 1)
+      p.tx = (clientX / window.innerWidth) * 2 - 1
+      p.ty = -((clientY / window.innerHeight) * 2 - 1)
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      aimPointer(event.clientX, event.clientY)
     }
     window.addEventListener('pointermove', handlePointerMove, { passive: true })
+
+    // Touch needs its own listener. Once a touch gesture is claimed as a
+    // pan/scroll, the browser stops emitting `pointermove` for it — a drag
+    // delivers `pointerdown` plus a single `pointermove`, then nothing, while
+    // `touchmove` keeps firing for the whole gesture. Listening only for
+    // pointer events left the field frozen under a moving finger on every
+    // phone: it tracked the first frame of the drag and then stopped.
+    //
+    // Deliberately passive, and no `touch-action` on the canvas: the field is
+    // a fixed background behind the entire page, so it reads the gesture but
+    // must never capture it — the same drag has to keep scrolling the page.
+    const handleTouchMove = (event: TouchEvent) => {
+      const touch = event.touches[0]
+      if (!touch) return
+      aimPointer(touch.clientX, touch.clientY)
+    }
+    window.addEventListener('touchmove', handleTouchMove, { passive: true })
 
     // The field is pinned to the viewport, so this no longer fires on scroll —
     // it exists for the cases where the canvas genuinely stops being seen
@@ -436,6 +458,7 @@ export function ShaderCanvas({
       resizeObserver.disconnect()
       sceneObserver.disconnect()
       window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('touchmove', handleTouchMove)
       timer.dispose()
       gl.deleteProgram(program)
       gl.deleteVertexArray(vao)

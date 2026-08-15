@@ -1,9 +1,22 @@
-import { useCallback, useState } from 'react'
+import { Suspense, lazy, useCallback, useState } from 'react'
 import { ShaderCanvas } from '../webgl/ShaderCanvas'
 import { HERO_FRAG } from '../webgl/heroShader'
 import { DEFAULT_PARAMS, type ParamKey, type ParamValues } from '../webgl/heroParams'
-import { ShaderLab } from './ShaderLab'
 import { useGpuProfiler } from '../hooks/useGpuProfiler'
+
+/**
+ * Split out of the main bundle. The lab (and the perf HUD it owns) is a
+ * developer toy most visitors never open, but it was ~a third of the JS every
+ * visitor had to download before the hero could boot. Loading it on first open
+ * costs the person who asked for it a moment, and costs everyone else nothing.
+ *
+ * ShaderLab already renders null while closed, so gating the mount on
+ * `labOpen` below loses nothing and means the chunk is not even requested
+ * until someone actually opens the lab.
+ */
+const ShaderLab = lazy(() =>
+  import('./ShaderLab').then((module) => ({ default: module.ShaderLab })),
+)
 
 export type ShaderFieldProps = {
   /** The lab sheet's visibility. Owned by App — the invitation to open it
@@ -86,20 +99,28 @@ export function ShaderField({ labOpen, onCloseLab }: ShaderFieldProps) {
         <div className="absolute inset-0 bg-gradient-to-b from-void/70 via-void/15 to-void/70" />
       </div>
 
-      <ShaderLab
-        open={labOpen}
-        onClose={onCloseLab}
-        params={params}
-        onParamChange={handleParamChange}
-        onPreset={handlePreset}
-        onReset={handleReset}
-        source={source}
-        onSourceApply={setSource}
-        onSourceReset={handleSourceReset}
-        compileLog={compile.log}
-        compileOk={compile.ok}
-        stats={stats}
-      />
+      {/* No fallback UI: the sheet is an overlay over a page that is already
+          fully usable, and a spinner in its place would be a flash of chrome
+          for a chunk that arrives in a few hundred milliseconds. The trigger
+          stays in its pressed state until the panel paints. */}
+      {labOpen && (
+        <Suspense fallback={null}>
+          <ShaderLab
+            open={labOpen}
+            onClose={onCloseLab}
+            params={params}
+            onParamChange={handleParamChange}
+            onPreset={handlePreset}
+            onReset={handleReset}
+            source={source}
+            onSourceApply={setSource}
+            onSourceReset={handleSourceReset}
+            compileLog={compile.log}
+            compileOk={compile.ok}
+            stats={stats}
+          />
+        </Suspense>
+      )}
     </>
   )
 }

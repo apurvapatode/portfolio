@@ -1,5 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useReducedMotion } from '../hooks/useReducedMotion'
+
+const FINE_POINTER = '(hover: hover) and (pointer: fine)'
 
 /**
  * Two-part cursor: a 1:1 dot and a lagging ring that inflates over interactive
@@ -14,9 +16,28 @@ export function Cursor() {
   const labelRef = useRef<HTMLSpanElement>(null)
   const reducedMotion = useReducedMotion()
 
+  // Gates the markup itself, not just the effect below. Rendering the dot and
+  // ring on a touch device left two un-transformed elements parked at their
+  // `left-0 top-0` origin — a stray dot in the top-left corner of every phone,
+  // because the effect that positions them bails before the first frame.
+  // Tracked as state rather than read inline so a pointer change mid-session
+  // (a mouse attached to a tablet) is picked up.
+  const [finePointer, setFinePointer] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia(FINE_POINTER).matches
+  })
+
   useEffect(() => {
-    if (reducedMotion) return
-    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return
+    const mediaQuery = window.matchMedia(FINE_POINTER)
+    const onChange = (event: MediaQueryListEvent) => setFinePointer(event.matches)
+    mediaQuery.addEventListener('change', onChange)
+    // The initializer ran before this effect; re-sync in case it changed since.
+    setFinePointer(mediaQuery.matches)
+    return () => mediaQuery.removeEventListener('change', onChange)
+  }, [])
+
+  useEffect(() => {
+    if (reducedMotion || !finePointer) return
 
     const dot = dotRef.current
     const ring = ringRef.current
@@ -135,9 +156,9 @@ export function Cursor() {
       document.documentElement.removeEventListener('pointerleave', onLeave)
       delete document.body.dataset.customCursor
     }
-  }, [reducedMotion])
+  }, [reducedMotion, finePointer])
 
-  if (reducedMotion) return null
+  if (reducedMotion || !finePointer) return null
 
   return (
     <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[100]">
